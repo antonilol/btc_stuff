@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "bitcoinjs-lib": "^6.0.1"
+  }
+}

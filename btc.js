@@ -20,7 +20,11 @@ function newtx(inputs, outputs) {
 	const tx = btc('createrawtransaction', inputs, outputs);
 	const signed = JSON.parse(btc('signrawtransactionwithwallet', tx)).hex;
 	const newtxid = JSON.parse(btc('decoderawtransaction', tx)).txid;
-	return btc('sendrawtransaction', signed);
+	return send(signed);
+}
+
+function send(hex) {
+	return btc('sendrawtransaction', hex);
 }
 
 function listunspent(conf) {
@@ -30,4 +34,4 @@ function listunspent(conf) {
 	return JSON.parse(btc('listunspent', conf));
 }
 
-module.exports = { btc, newtx, listunspent };
+module.exports = { btc, newtx, send, listunspent };
