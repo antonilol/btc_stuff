@@ -26,7 +26,7 @@ tx.setInputScript(0, bitcoin.script.compile([
 ]));
 
 tx.setWitness(0, [
-	...[ '07', '06' ].map(x => Buffer.from(x, 'hex')),
+	...[ '06', '07' ].map(x => Buffer.from(x, 'hex')),
 	redeemScript
 ]);
 

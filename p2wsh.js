@@ -7,10 +7,8 @@ function address(a) {
 }
 
 const witnessScript = bitcoin.script.compile([
-	bitcoin.opcodes.OP_SWAP,
-	bitcoin.opcodes.OP_DROP,
 	bitcoin.opcodes.OP_ADD,
-	bitcoin.opcodes.OP_7,
+	bitcoin.opcodes.OP_13,
 	bitcoin.opcodes.OP_EQUAL
 ]);
 
@@ -23,7 +21,7 @@ const vout = 0;
 
 tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
 tx.setWitness(0, [
-	...[ '05', '04', '02' ].map(x => Buffer.from(x, 'hex')),
+	...[ '06', '07' ].map(x => Buffer.from(x, 'hex')),
 	witnessScript
 ]);
 
