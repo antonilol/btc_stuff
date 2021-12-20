@@ -6,15 +6,13 @@ function address(a) {
 	return Buffer.from('0014' + bitcoin.address.fromBech32(a).data.toString('hex'), 'hex');
 }
 
-const witnessScript = bitcoin.script.compile([
-	bitcoin.opcodes.OP_SWAP,
-	bitcoin.opcodes.OP_DROP,
+const redeemScript = bitcoin.script.compile([
 	bitcoin.opcodes.OP_ADD,
-	bitcoin.opcodes.OP_7,
+	bitcoin.opcodes.OP_13,
 	bitcoin.opcodes.OP_EQUAL
 ]);
 
-console.log('Locking script: ' + witnessScript.toString('hex'));
+console.log('Locking script: ' + redeemScript.toString('hex'));
 
 const tx = new bitcoin.Transaction(network);
 
@@ -22,9 +20,14 @@ const txid = '1234....'; // txid hex here
 const vout = 0;
 
 tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
+
+tx.setInputScript(0, bitcoin.script.compile([
+	Buffer.from('0020' + bitcoin.crypto.sha256(redeemScript).toString('hex'), 'hex')
+]));
+
 tx.setWitness(0, [
-	...[ '05', '04', '02' ].map(x => Buffer.from(x, 'hex')),
-	witnessScript
+	...[ '07', '06' ].map(x => Buffer.from(x, 'hex')),
+	redeemScript
 ]);
 
 const fee_sat = 100;

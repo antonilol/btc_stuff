@@ -28,7 +28,7 @@ tx.setInputScript(0, bitcoin.script.compile([
 ]));
 
 const fee_sat = 100;
-const input_sat = 100;
+const input_sat = 1000;
 
 tx.addOutput(address('tb1qbech32addresshere'), input_sat-fee_sat);
 
