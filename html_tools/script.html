@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Bitcoin Script Editor</title>
+	<style>
+		#t div {
+			float: left;
+			margin: 4px;
+			width: calc(25% - 8px);
+		}
+
+		#t textarea {
+			font: 15px monospace;
+			height: 20em;
+			width: calc(100% - 6px);
+		}
+
+		.error {
+			background: #ccc;
+			color: red;
+			border: 1px solid black;
+			border-radius: 5px;
+			padding: 9px;
+			padding-bottom: 4px;
+			height: 16px;
+			margin: 5px 0 5px 0;
+		}
+	</style>
+</head>
+<body>
+<div id="t">
+	<div>
+		Bitcoin script
+		<br>
+		<textarea id="asm"></textarea>
+		<br>
+		<pre class="error" id="asme"></pre>
+	</div>
+	<div>
+		hex
+		<br>
+		<textarea id="hex"></textarea>
+		<br>
+		<pre class="error" id="hexe"></pre>
+	</div>
+	<div style="width: calc(50% - 8px);">
+		javascript (NodeJS)
+		<br>
+		<textarea id="js" readonly></textarea>
+	</div>
+</div>
+<script src="opcodes.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Bitcoin Transaction Tool</title>
+	<style>
+		textarea {
+			font: 15px monospace;
+			height: 20em;
+			width: 40em;
+		}
+
+		#rules button {
+			margin: 3px;
+			width: 25px;
+			height: 22px;
+			color: red;
+			font-weight: bold;
+		}
+	</style>
+</head>
+<body>
+Enter output of <code>bitcoin-cli listunspent 0</code>
+<br>
+<textarea id="utxos"></textarea>
+<br><br>
+Filter UTXOs
+<br>
+<select id="use">
+	<option>Keep only</option>
+	<option>Remove all</option>
+</select>
+
+UTXOs with
+
+<select id="key">
+	<option class="string">txid</option>
+	<option class="num">vout</option>
+	<option class="string">address</option>
+	<option class="string">label</option>
+	<option class="num">amount</option>
+	<option class="num">confirmations</option>
+	<option class="bool">spendable</option>
+	<option class="bool">solvable</option>
+	<option class="bool">safe</option>
+</select>
+
+<select id="comp">
+	<option value="eq">equal to</option>
+	<option value="neq">not equal to</option>
+	<option value="gt" class="numcomp">greater than</option>
+	<option value="gte" class="numcomp">greater than or equal to</option>
+	<option value="lt" class="numcomp">less than</option>
+	<option value="lte" class="numcomp">less than or equal to</option>
+</select>
+
+<input type="text" id="val" />
+
+<select id="unit" style="display: none;">
+	<option>BTC</option>
+	<option>mBTC</option>
+	<option>sat</option>
+</select>
+
+<select id="bool" style="display: none;">
+	<option>true</option>
+	<option>false</option>
+</select>
+
+<button id="ok">Add rule</button>
+<br>
+<p id="rules"></p>
+<br>
+Outputs:
+
+<!-- TODO this -->
+
+<script src="tx.js"></script>
+</body>
+</html>
