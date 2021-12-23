@@ -2,12 +2,8 @@ const { newtx, listunspent } = require('./btc');
 
 console.log('Listing UTXOs');
 
-var s = listunspent();
-
-console.log(`Found ${s.length} UTXO${s.length == 1 ? '' : 's'}`);
-
-s = s
-	.filter(u => u.amount >= 500e-8)
+var s = listunspent(0.000005)
+	.filter(u => u.spendable && u.solvable)
 	.filter((u, i, l) => l.slice(0, i).filter(x => x.address == u.address).length < 10);
 
 console.log(`Found ${s.length} usable UTXO${s.length == 1 ? '' : 's'}`);

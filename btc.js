@@ -16,7 +16,12 @@ function btc(...args) {
 }
 
 // sign, create and send new transaction
-function newtx(inputs, outputs) {
+function newtx(inputs, outputs, sat=false) {
+	if (sat) {
+		Object.keys(outputs).forEach(k => {
+			outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+		});
+	}
 	const tx = btc('createrawtransaction', inputs, outputs);
 	const signed = JSON.parse(btc('signrawtransactionwithwallet', tx)).hex;
 	const newtxid = JSON.parse(btc('decoderawtransaction', tx)).txid;
@@ -27,11 +32,12 @@ function send(hex) {
 	return btc('sendrawtransaction', hex);
 }
 
-function listunspent(conf) {
-	if (conf == undefined) {
-		return JSON.parse(btc('listunspent'))
-	}
-	return JSON.parse(btc('listunspent', conf));
+function listunspent(minamount=0, minconf=1) {
+	return JSON.parse(btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`));
 }
 
-module.exports = { btc, newtx, send, listunspent };
+function getnewaddress() {
+	return btc('getnewaddress');
+}
+
+module.exports = { btc, newtx, send, listunspent, getnewaddress };
