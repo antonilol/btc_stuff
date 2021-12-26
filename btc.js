@@ -1,30 +1,37 @@
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
 
 function btc(...args) {
-	var o = execSync('bitcoin-cli -testnet ' + args.map(x => {
-		const s = JSON.stringify(x);
-		if (typeof x == 'object') {
-			return JSON.stringify(s);
-		}
-		return s;
-	}).join(' ')).toString();
-
-	while (o.endsWith('\n')) {
-		o = o.slice(0, -1);
-	}
-	return o;
+	return new Promise((r, e) => {
+		exec('bitcoin-cli -testnet ' + args.map(x => {
+			const s = JSON.stringify(x);
+			if (typeof x == 'object') {
+				return JSON.stringify(s);
+			}
+			return s;
+		}).join(' '), { maxBuffer: 2**25 } , (err, stdout, stderr) => {
+			if (err) {
+				console.error('error', stdout);
+				e(stderr);
+				return;
+			}
+			while (stdout.endsWith('\n')) {
+				stdout = stdout.slice(0, -1);
+			}
+			r(stdout);
+		});
+	});
 }
 
 // sign, create and send new transaction
-function newtx(inputs, outputs, sat=false) {
+async function newtx(inputs, outputs, sat=false) {
 	if (sat) {
 		Object.keys(outputs).forEach(k => {
 			outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
 		});
 	}
-	const tx = btc('createrawtransaction', inputs, outputs);
-	const signed = JSON.parse(btc('signrawtransactionwithwallet', tx)).hex;
-	const newtxid = JSON.parse(btc('decoderawtransaction', tx)).txid;
+	const tx = await btc('createrawtransaction', inputs, outputs);
+	const signed = JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex;
+	const newtxid = JSON.parse(await btc('decoderawtransaction', tx)).txid;
 	return send(signed);
 }
 
@@ -32,8 +39,8 @@ function send(hex) {
 	return btc('sendrawtransaction', hex);
 }
 
-function listunspent(minamount=0, minconf=1) {
-	return JSON.parse(btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`));
+async function listunspent(minamount=0, minconf=1) {
+	return JSON.parse(await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`));
 }
 
 function getnewaddress() {
