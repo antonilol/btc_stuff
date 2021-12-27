@@ -13,8 +13,13 @@ async function main() {
 		.map(u => {
 			u.amount = Math.round(u.amount * 1e8); // prevent floats
 			return u;
-		})
-		.sort((a, b) => Math.random() < 0.5 ? -1 : 1);
+		});
+
+	const i = parseInt(process.argv[2]);
+
+	if (!isNaN(i) && i >= 0 && i < s.length - 1) {
+		s.push(s.splice(i, 1));
+	}
 
 	console.log(`Found ${s.length} usable UTXO${s.length == 1 ? '' : 's'}`);
 
