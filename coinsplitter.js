@@ -37,6 +37,10 @@ async function main() {
 	catch (e) {
 	}
 
+	if (addr.length < 2000) {
+		console.log(`Getting ${2000 - addr.length} new addresses...`);
+	}
+
 	var c = false;
 
 	while (addr.length < 2000) {
@@ -56,7 +60,7 @@ async function main() {
 		v -= amount + 33;
 		while (v < 0) {
 			if (s.length < 1) {
-				throw new Error('insufficient confirmed balance!');
+				throw new Error('insufficient balance!');
 			}
 			const u = s.pop();
 			inputs.push({
