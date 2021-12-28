@@ -31,7 +31,6 @@ async function newtx(inputs, outputs, sat=false) {
 	}
 	const tx = await btc('createrawtransaction', inputs, outputs);
 	const signed = JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex;
-	const newtxid = JSON.parse(await btc('decoderawtransaction', tx)).txid;
 	return send(signed);
 }
 
