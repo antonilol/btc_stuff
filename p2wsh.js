@@ -1,10 +1,7 @@
 const { send } = require('./btc');
+const { bech32toLockingScript } = require('./btc2');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
-
-function address(a) {
-	return Buffer.from('0014' + bitcoin.address.fromBech32(a).data.toString('hex'), 'hex');
-}
 
 const witnessScript = bitcoin.script.compile([
 	bitcoin.opcodes.OP_ADD,
@@ -28,6 +25,6 @@ tx.setWitness(0, [
 const fee_sat = 100;
 const input_sat = 1000;
 
-tx.addOutput(address('tb1qbech32addresshere'), input_sat-fee_sat);
+tx.addOutput(bech32toLockingScript('tb1qbech32addresshere'), input_sat-fee_sat);
 
 console.log(send(tx.toHex()));
