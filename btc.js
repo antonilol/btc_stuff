@@ -10,6 +10,7 @@ function btc(...args) {
 				return JSON.stringify(s);
 			}
 			return s;
+			//                     2**25 bytes = 32 MB max buffer
 		}).join(' '), { maxBuffer: 2**25 } , (err, stdout, stderr) => {
 			if (err) {
 				console.error('error', stdout);
