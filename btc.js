@@ -1,8 +1,10 @@
 const { exec } = require('child_process');
 
+var chain = 'test';
+
 function btc(...args) {
 	return new Promise((r, e) => {
-		exec('bitcoin-cli -testnet ' + args.map(x => {
+		exec(`bitcoin-cli -chain=${chain} ` + args.map(x => {
 			const s = JSON.stringify(x);
 			if (typeof x == 'object') {
 				return JSON.stringify(s);
@@ -46,4 +48,9 @@ function getnewaddress() {
 	return btc('getnewaddress');
 }
 
-module.exports = { btc, newtx, send, listunspent, getnewaddress };
+module.exports = c => {
+	if (c) {
+		chain = c;
+	}
+	return { btc, newtx, send, listunspent, getnewaddress };
+};

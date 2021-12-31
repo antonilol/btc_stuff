@@ -1,4 +1,4 @@
-const { newtx, listunspent, getnewaddress } = require('./btc');
+const { newtx, listunspent, getnewaddress } = require('./btc')();
 const fs = require('fs');
 
 const amount = 2000;

@@ -1,4 +1,4 @@
-const { newtx, listunspent } = require('./btc');
+const { newtx, listunspent } = require('./btc')();
 
 var count = 0;
 

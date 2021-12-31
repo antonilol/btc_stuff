@@ -1,4 +1,4 @@
-const { send } = require('./btc');
+const { send } = require('./btc')();
 const { bech32toLockingScript } = require('./btc2');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
