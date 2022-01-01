@@ -1,5 +1,5 @@
 const { btc, send } = require('./btc')();
-const { bech32toLockingScript } = require('./btc2');
+const { bech32toScriptPubKey } = require('./btc2');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_ALL;
@@ -40,7 +40,7 @@ async function main() {
 	const amount = 1000;
 	const fee = 137;
 
-	tx.addOutput(bech32toLockingScript('tb1qbech32addresshere'), amount - fee);
+	tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), amount - fee);
 
 	const sighash = tx.hashForWitnessV0(0, witnessScript, amount, hashtype);
 	const witness = bitcoin.payments.p2wsh({

@@ -1,5 +1,5 @@
 const { send } = require('./btc')();
-const { bech32toLockingScript } = require('./btc2');
+const { bech32toScriptPubKey } = require('./btc2');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
 
@@ -27,6 +27,6 @@ tx.setInputScript(0, bitcoin.script.compile([
 const fee_sat = 100;
 const input_sat = 1000;
 
-tx.addOutput(bech32toLockingScript('tb1qbech32addresshere'), input_sat-fee_sat);
+tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), input_sat-fee_sat);
 
 console.log(send(tx.toHex()));
