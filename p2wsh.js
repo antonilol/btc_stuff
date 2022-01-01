@@ -27,4 +27,4 @@ const input_sat = 1000;
 
 tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), input_sat-fee_sat);
 
-console.log(send(tx.toHex()));
+console.log(await send(tx.toHex()));
