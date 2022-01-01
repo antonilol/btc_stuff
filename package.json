@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "bitcoinjs-lib": "^6.0.1"
+    "bitcoinjs-lib": "^6.0.1",
+    "ecpair": "^2.0.1",
+    "tiny-secp256k1": "^2.1.2"
   }
 }

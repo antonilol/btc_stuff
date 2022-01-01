@@ -1,8 +1,9 @@
-const { btc, send } = require('../btc')();
-const { bech32toLockingScript } = require('../btc2');
+const { btc, send } = require('./btc')();
+const { bech32toLockingScript } = require('./btc2');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_ALL;
+const ECPair = require('ecpair').ECPairFactory(require('tiny-secp256k1'));
 
 const txid = '1234....'; // txid hex here
 const vout = 0;
@@ -17,8 +18,8 @@ async function main() {
 	const key1 = btc('dumpprivkey', addr1);
 	const key2 = btc('dumpprivkey', addr2);
 
-	const ecpair1 = bitcoin.ECPair.fromWIF(await key1, network);
-	const ecpair2 = bitcoin.ECPair.fromWIF(await key2, network);
+	const ecpair1 = ECPair.fromWIF(await key1, network);
+	const ecpair2 = ECPair.fromWIF(await key2, network);
 
 	const witnessScript = bitcoin.script.compile([
 		ecpair1.publicKey,
@@ -32,16 +33,14 @@ async function main() {
 		bitcoin.payments.p2wsh({ redeem: { output: witnessScript, network }, network }).address
 	);
 
-	const txb = new bitcoin.TransactionBuilder(network);
+	const tx = new bitcoin.Transaction(network);
 
-	txb.addInput(txid, vout);
+	tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
 
 	const amount = 1000;
 	const fee = 137;
 
-	txb.addOutput(bech32toLockingScript('tb1qbech32addresshere'), amount - fee);
-
-	const tx = txb.buildIncomplete()
+	tx.addOutput(bech32toLockingScript('tb1qbech32addresshere'), amount - fee);
 
 	const sighash = tx.hashForWitnessV0(0, witnessScript, amount, hashtype);
 	const witness = bitcoin.payments.p2wsh({
