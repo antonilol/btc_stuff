@@ -1,5 +1,4 @@
-const { btc, send } = require('./btc')();
-const { bech32toScriptPubKey } = require('./btc2');
+const { btc, send, bech32toScriptPubKey } = require('./btc')();
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_ALL;

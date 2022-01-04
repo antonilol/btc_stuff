@@ -1,4 +1,5 @@
 const { exec } = require('child_process');
+const bitcoin = require('bitcoinjs-lib');
 
 var chain = 'test';
 
@@ -49,9 +50,17 @@ function getnewaddress() {
 	return btc('getnewaddress');
 }
 
+function bech32toScriptPubKey(a) {
+	return bitcoin.script.compile([
+		// witness v0 (20 bytes: P2WPKH, 32 bytes: P2WSH)
+		bitcoin.opcodes.OP_0,
+		bitcoin.address.fromBech32(a).data
+	]);
+}
+
 module.exports = c => {
 	if (c) {
 		chain = c;
 	}
-	return { btc, newtx, send, listunspent, getnewaddress };
+	return { btc, newtx, send, listunspent, getnewaddress, bech32toScriptPubKey };
 };
