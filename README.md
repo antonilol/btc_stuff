@@ -32,6 +32,6 @@ const network = bitcoin.networks.testnet;
 ```
 to
 ```js
-const network = bitcoin.networks.bitcoin; // Where bitcoin can be replaced by testnet or regtest,
-                                          // it does not support signet at the time of writing
+const network = bitcoin.networks.bitcoin; // Where bitcoin can be replaced by testnet or regtest.
+                                          // For signet, use testnet (they use the same address prefix).
 ```
