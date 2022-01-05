@@ -43,22 +43,21 @@ async function main() {
 	const witnessScriptPieces = [];
 
 	for (var i = 0; i < ecpairs.length; i++) {
-		witnessScriptPieces.push(...[
+		witnessScriptPieces.push(
 			ecpairs[i].publicKey,
 			bitcoin.opcodes.OP_CHECKSIG
-		]);
-		if (i) {
+		);
+		if (i != 0) { // not first
 			witnessScriptPieces.push(bitcoin.opcodes.OP_ADD);
 		}
-		if (ecpairs.length - 1 == i) {
-			witnessScriptPieces.push(...[
-				opcodeNumber(m),
-				bitcoin.opcodes.OP_EQUAL
-			]);
-		} else {
+		if (ecpairs.length - 1 != i) { // not last
 			witnessScriptPieces.push(bitcoin.opcodes.OP_SWAP);
 		}
 	}
+	witnessScriptPieces.push(
+		opcodeNumber(m),
+		bitcoin.opcodes.OP_EQUAL
+	);
 
 	const witnessScript = bitcoin.script.compile(witnessScriptPieces);
 
