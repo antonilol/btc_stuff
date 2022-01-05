@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# args 1: data (hex)
+# args 2: iterations (default 2)
+
+it=2
+
+if [[ -n "$2" ]]; then
+	it=$2
+fi
+
+h="$1"
+
+for ((i=1;i<=it;i++)); do
+	h=$(echo $h | xxd -r -p | sha256sum)
+done
+
+echo $h | sed 's/ .*//'
