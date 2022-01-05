@@ -34,8 +34,8 @@ async function main() {
 	tx.addInput(Buffer.from(txid, 'hex').reverse(), vout, 0xfffffffe); // 0xfffffffe -> no rbf, activate locktime
 	tx.locktime = 2134581;
 
-	const amount = 2331;
-	const fee = 112;
+	const amount = 1000;
+	const fee = 100;
 
 	tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), amount - fee);
 

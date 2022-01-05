@@ -19,8 +19,8 @@ const vout = 0;
 
 tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
 
-const fee_sat = 221;
-const input_sat = 753;
+const fee_sat = 100;
+const input_sat = 1000;
 
 tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), input_sat-fee_sat);
 

@@ -37,7 +37,7 @@ async function main() {
 	tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
 
 	const amount = 1000;
-	const fee = 137;
+	const fee = 100;
 
 	tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), amount - fee);
 
