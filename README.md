@@ -3,7 +3,7 @@
 A repository with standalone JavaScript files (except library file [btc.js](https://github.com/antonilol/btc_stuff/blob/master/btc.js)).
 
 
-#### Dependencies
+### Dependencies
 
 - A running Bitcoin node
 - nodejs
@@ -13,7 +13,7 @@ A repository with standalone JavaScript files (except library file [btc.js](http
   - tiny-secp256k1
 
 
-#### Network
+### Network
 
 All script by default use `testnet`. To use another network (for example mainnet):
 
