@@ -8,12 +8,8 @@ main();
 async function main() {
 	console.log('Listing UTXOs');
 
-	const s = (await listunspent(0.001, 0))
-		.filter(u => u.spendable && u.solvable)
-		.map(u => {
-			u.amount = Math.round(u.amount * 1e8); // prevent floats
-			return u;
-		});
+	const s = (await listunspent(0.001, 0, true))
+		.filter(u => u.spendable && u.solvable);
 
 	const i = parseInt(process.argv[2]);
 
