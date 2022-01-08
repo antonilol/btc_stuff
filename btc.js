@@ -42,8 +42,13 @@ function send(hex) {
 	return btc('sendrawtransaction', hex);
 }
 
-async function listunspent(minamount=0, minconf=1) {
-	return JSON.parse(await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`));
+async function listunspent(minamount=0, minconf=1, sat=false) {
+	return JSON.parse(await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`)).map(u => {
+		if (sat) {
+			u.amount = Math.round(u.amount * 1e8);
+		}
+		return u;
+	});
 }
 
 function getnewaddress() {
