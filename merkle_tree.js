@@ -1,4 +1,3 @@
-const { btc } = require('./btc')();
 const bitcoin = require('bitcoinjs-lib');
 const assert = require('assert');
 
