@@ -63,9 +63,8 @@ function bech32toScriptPubKey(a) {
 	]);
 }
 
-module.exports = c => {
-	if (c) {
-		chain = c;
-	}
-	return { btc, newtx, send, listunspent, getnewaddress, bech32toScriptPubKey };
-};
+function setChain(c) {
+	chain = c;
+}
+
+module.exports = { btc, newtx, send, listunspent, getnewaddress, bech32toScriptPubKey, setChain };

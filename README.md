@@ -17,14 +17,11 @@ A repository with standalone JavaScript files (except library file [btc.js](http
 
 All script by default use `testnet`. To use another network (for example mainnet):
 
-change
+add
 ```js
-require('./btc')();
+setChain('main'); // Where 'main' can be replaced by 'test', 'signet' or 'regtest'
 ```
-to
-```js
-require('./btc')('main'); // Where 'main' can be replaced by 'test', 'signet' or 'regtest'
-```
+(`setChain` may need to be imported from `./btc.js`)
 
 and if applicable (not all script use `bitcoinjs-lib`), change
 ```js
