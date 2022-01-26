@@ -1,7 +1,6 @@
 # btc_stuff
 
-A repository with standalone JavaScript files (except library file [btc.js](https://github.com/antonilol/btc_stuff/blob/master/btc.js)).
-
+Bitcoin transaction examples with bitcoinjs-lib
 
 ### Dependencies
 
