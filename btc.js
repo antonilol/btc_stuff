@@ -56,9 +56,9 @@ function getnewaddress() {
 }
 
 function bech32toScriptPubKey(a) {
+	const z = bitcoin.address.fromBech32(a);
 	return bitcoin.script.compile([
-		// witness v0 (20 bytes: P2WPKH, 32 bytes: P2WSH)
-		bitcoin.opcodes.OP_0,
+		bitcoin.script.number.encode(z.version),
 		bitcoin.address.fromBech32(a).data
 	]);
 }
