@@ -1,28 +1,34 @@
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const bitcoin = require('bitcoinjs-lib');
 
 var chain = 'test';
 
 function btc(...args) {
 	return new Promise((r, e) => {
-		exec(`bitcoin-cli -chain=${chain} ` + args.map(x => {
-			const s = JSON.stringify(x);
-			if (typeof x == 'object') {
-				return JSON.stringify(s);
+		const p = spawn('bitcoin-cli', [ `-chain=${chain}`, '-stdin' ]);
+
+		var out = '';
+
+		p.stdout.setEncoding('utf8');
+		p.stdout.on('data', data => out += data.toString());
+
+		p.stderr.setEncoding('utf8');
+		p.stderr.on('data', data => out += data.toString());
+
+		p.on('close', code => {
+			while (out.endsWith('\n')) {
+				out = out.slice(0, -1);
 			}
-			return s;
-			//                     2**25 bytes = 32 MB max buffer
-		}).join(' '), { maxBuffer: 2**25 } , (err, stdout, stderr) => {
-			if (err) {
-				console.error('error', stdout);
-				e(stderr);
-				return;
-			}
-			while (stdout.endsWith('\n')) {
-				stdout = stdout.slice(0, -1);
-			}
-			r(stdout);
+			(code ? e : r)(out);
 		});
+
+		p.stdin.write(args.map(x => {
+			if (typeof x === 'object') {
+				return JSON.stringify(x);
+			}
+			return x.toString().replaceAll('\n', '');
+		}).join('\n'));
+		p.stdin.end();
 	});
 }
 
