@@ -31,7 +31,12 @@ const data = {};
 getData().then(fillData);
 
 async function getData() {
-	const i = await input('Enter private key WIF or hex, public key or address\n> ');
+	var i;
+	if (process.argv.length > 2) {
+		i = process.argv[2];
+	} else {
+		i = await input('Enter private key WIF or hex, public key or address\n> ');
+	}
 
 	try {
 		const b32 = bitcoin.address.fromBech32(i);
@@ -73,7 +78,7 @@ async function getData() {
 		} else {
 			data.sh = b58.hash;
 		}
-		console.log(`Detected ${pkh} P2${pkh ? 'PK' : 'S'}H base 58 address`);
+		console.log(`Detected ${pkh ? `${pkh} P2PK` : `${sh} P2S`}H base 58 address`);
 		return;
 	}
 	catch (e) {
@@ -136,10 +141,8 @@ function fillData() {
 		data.sh = bitcoin.crypto.ripemd160(data.wsh);
 	}
 
-	console.log(data);
-
 	if (data.priv) {
-		console.log('\nPrivate keys:');
+		console.log('\nPrivate key');
 		data.ec.network = mainnet;
 		data.ec.compressed = true;
 		console.log(` Mainnet WIF (compressed public key):   ${data.ec.toWIF()}`);
@@ -156,29 +159,32 @@ function fillData() {
 	}
 
 	if (data.pub) {
-		console.log('\nPublic keys:');
+		console.log('\nPublic key');
 		console.log(` Compressed:   ${data.pub.toString('hex')}`);
 		console.log(` Uncompressed: ${data.pubu.toString('hex')}`);
 	}
 
 	if (data.pub) {
-		console.log('\nPKH Addresses:');
+		console.log('\nPublic Key Hash');
 		console.log(` Mainnet P2PKH (compressed public key):   ${bitcoin.address.toBase58Check(data.pkh,  mainnet.pubKeyHash)}`);
 		console.log(` Mainnet P2PKH (uncompressed public key): ${bitcoin.address.toBase58Check(data.pkhu, mainnet.pubKeyHash)}`);
 		console.log(` Mainnet P2WPKH (compressed public key):  ${bitcoin.address.toBech32(data.pkh, 0, mainnet.bech32)}`);
 		console.log(` Testnet P2PKH (compressed public key):   ${bitcoin.address.toBase58Check(data.pkh,  testnet.pubKeyHash)}`);
 		console.log(` Testnet P2PKH (uncompressed public key): ${bitcoin.address.toBase58Check(data.pkhu, testnet.pubKeyHash)}`);
 		console.log(` Testnet P2WPKH (compressed public key):  ${bitcoin.address.toBech32(data.pkh, 0, testnet.bech32)}`);
+		console.log(` Hex (compressed public key):             ${data.pkh.toString('hex')}`);
+		console.log(` Hex (uncompressed public key):           ${data.pkhu.toString('hex')}`);
 	} else if (data.pkh) {
-		console.log('\nPKH Addresses:');
+		console.log('\nPublic Key Hash');
 		console.log(` Mainnet P2PKH:   ${bitcoin.address.toBase58Check(data.pkh,  mainnet.pubKeyHash)}`);
 		console.log(` Mainnet P2WPKH:  ${bitcoin.address.toBech32(data.pkh, 0, mainnet.bech32)}`);
 		console.log(` Testnet P2PKH:   ${bitcoin.address.toBase58Check(data.pkh,  testnet.pubKeyHash)}`);
 		console.log(` Testnet P2WPKH:  ${bitcoin.address.toBech32(data.pkh, 0, testnet.bech32)}`);
+		console.log(` Hex:             ${data.pkh.toString('hex')}`);
 	}
 
 	if (data.sh || data.pkh) {
-		console.log('\nSH Addresses:');
+		console.log('\nScript Hash');
 		var nwsh, nwpkh;
 		if (data.wsh) {
 			nwsh = bitcoin.crypto.hash160(bitcoin.script.compile([ 0, data.wsh ]));
