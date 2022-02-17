@@ -5,7 +5,11 @@ var chain = 'test';
 
 function btc(...args) {
 	return new Promise((r, e) => {
-		const p = spawn('bitcoin-cli', [ `-chain=${chain}`, '-stdin' ]);
+		const cmdargs = [ `-chain=${chain}`, '-stdin' ];
+		while (args.length && args[0].startsWith('-')) {
+			cmdargs.push(args.shift());
+		}
+		const p = spawn('bitcoin-cli', cmdargs);
 
 		var out = '';
 
