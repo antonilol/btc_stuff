@@ -1,0 +1,10 @@
+#!/bin/bash
+
+git clone https://github.com/antonilol/cpuminer.git
+
+cd cpuminer
+
+./autogen.sh
+./nomacro.pl
+./configure CFLAGS="-O3"
+make
