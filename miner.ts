@@ -178,7 +178,7 @@ async function main() {
 	}
 }
 
-function mine(header: Buffer): Promise<Buffer> {
+function mine(header: Buffer): Promise<Buffer | void> {
 	return new Promise((r, e) => {
 		const p = spawn(minerd, [ header.toString('hex') ]);
 
@@ -196,8 +196,10 @@ function mine(header: Buffer): Promise<Buffer> {
 			}
 			if (code) {
 				e(out);
-			} else {
+			} else if (out) {
 				r(Buffer.from(out, 'hex'));
+			} else {
+				r();
 			}
 		});
 	});

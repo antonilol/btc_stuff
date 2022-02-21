@@ -234,8 +234,11 @@ function mine(header) {
             if (code) {
                 e(out);
             }
-            else {
+            else if (out) {
                 r(Buffer.from(out, 'hex'));
+            }
+            else {
+                r();
             }
         });
     });
