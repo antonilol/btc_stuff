@@ -67,13 +67,20 @@ function btc() {
                         (code ? e : r)(out);
                     });
                     p.stdin.write(args.map(function (x) {
+                        var arg;
                         if (Buffer.isBuffer(x)) {
-                            return x.toString('hex');
+                            arg = x.toString('hex');
                         }
-                        if (typeof x === 'object') {
-                            return JSON.stringify(x);
+                        else if (typeof x === 'number') {
+                            arg = x.toString();
                         }
-                        return x.toString().replace(/\n/g, '');
+                        else if (typeof x === 'string') {
+                            arg = x;
+                        }
+                        else {
+                            arg = JSON.stringify(x);
+                        }
+                        return arg.replace(/\n/g, '');
                     }).join('\n'));
                     p.stdin.end();
                 })];

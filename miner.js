@@ -69,6 +69,7 @@ function encodeVarUIntLE(n) {
     }
     return buf;
 }
+var templateFile;
 // BIP141
 var wCommitHeader = Buffer.from('aa21a9ed', 'hex');
 function createCoinbase(address, value, height, txs, message) {
@@ -114,10 +115,16 @@ function getWork() {
         var _this = this;
         return __generator(this, function (_a) {
             switch (_a.label) {
-                case 0: return [4 /*yield*/, (0, btc_1.getBlockTemplate)()];
-                case 1:
+                case 0:
+                    if (!templateFile) return [3 /*break*/, 1];
+                    t = JSON.parse((0, fs_1.readFileSync)(templateFile).toString());
+                    return [3 /*break*/, 3];
+                case 1: return [4 /*yield*/, (0, btc_1.getBlockTemplate)()];
+                case 2:
                     t = _a.sent();
-                    time = Math.floor(new Date().getTime() / 1000);
+                    _a.label = 3;
+                case 3:
+                    time = Math.min(t.mintime, Math.floor(new Date().getTime() / 1000));
                     txs = t.transactions;
                     txids = txs.map(function (x) { return x.txid; });
                     mempool = (0, fs_1.readdirSync)('mempool');
@@ -135,7 +142,7 @@ function getWork() {
                                 }
                             });
                         }); }))];
-                case 2:
+                case 4:
                     (_a.sent()).forEach(function (tx) {
                         if (txids.includes(tx[1].txid)) {
                             return;
@@ -179,6 +186,10 @@ function getWork() {
     });
 }
 var minerd = "".concat((0, path_1.dirname)(process.argv[1]), "/cpuminer/minerd");
+templateFile = process.argv[2];
+if (templateFile) {
+    console.log("Using block template from ".concat(templateFile));
+}
 main();
 function main() {
     return __awaiter(this, void 0, void 0, function () {
@@ -208,6 +219,10 @@ function main() {
                         return [2 /*return*/];
                     }
                     console.log(' ok');
+                    if (templateFile) {
+                        console.log("Falling back to bitcoind's blocktemplate");
+                        templateFile = undefined;
+                    }
                     work.mempool.forEach(function (m) {
                         (0, fs_1.copyFileSync)("mempool/".concat(m), "/tmp/".concat(m));
                         (0, fs_1.unlinkSync)("mempool/".concat(m));
