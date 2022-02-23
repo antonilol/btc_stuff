@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
-import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplateTX, decodeRawTransaction, RawTransaction } from './btc';
+import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, decodeRawTransaction, RawTransaction } from './btc';
 import { merkleRoot } from './merkle_tree';
 import { strict as assert } from 'assert';
 import { randomBytes } from 'crypto';
@@ -31,6 +31,8 @@ function encodeVarUIntLE(n: number): Buffer {
 	}
 	return buf;
 }
+
+var templateFile: string | undefined;
 
 // BIP141
 const wCommitHeader = Buffer.from('aa21a9ed', 'hex');
@@ -80,9 +82,14 @@ function createCoinbase(address: string, value: number, height: number, txs: Blo
 }
 
 async function getWork() {
-	const t = await getBlockTemplate();
+	var t: BlockTemplate;
+	if (templateFile) {
+		t = JSON.parse(readFileSync(templateFile).toString());
+	} else {
+		t = await getBlockTemplate();
+	}
 
-	const time = Math.floor(new Date().getTime() / 1000);
+	const time = Math.min(t.mintime, Math.floor(new Date().getTime() / 1000));
 	const txs = t.transactions;
 	const txids = txs.map(x => x.txid);
 
@@ -149,6 +156,12 @@ async function getWork() {
 
 const minerd = `${dirname(process.argv[1])}/cpuminer/minerd`;
 
+templateFile = process.argv[2];
+
+if (templateFile) {
+	console.log(`Using block template from ${templateFile}`);
+}
+
 main();
 
 async function main() {
@@ -170,6 +183,10 @@ async function main() {
 				return;
 			}
 			console.log(' ok');
+			if (templateFile) {
+				console.log(`Falling back to bitcoind's blocktemplate`);
+				templateFile = undefined;
+			}
 			work.mempool.forEach(m => {
 				copyFileSync(`mempool/${m}`,`/tmp/${m}`);
 				unlinkSync(`mempool/${m}`);

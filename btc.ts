@@ -131,13 +131,17 @@ export async function btc(...args: (string | Buffer | number | {})[]): Promise<s
 		});
 
 		p.stdin.write(args.map(x => {
+			var arg: string
 			if (Buffer.isBuffer(x)) {
-				return x.toString('hex');
+				arg = x.toString('hex');
+			} else if (typeof x === 'number') {
+				arg = x.toString();
+			} else if (typeof x === 'string') {
+				arg = x;
+			} else {
+				arg = JSON.stringify(x);
 			}
-			if (typeof x === 'object') {
-				return JSON.stringify(x);
-			}
-			return x.toString().replace(/\n/g, '');
+			return arg.replace(/\n/g, '');
 		}).join('\n'));
 		p.stdin.end();
 	});
