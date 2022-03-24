@@ -35,8 +35,17 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
 exports.__esModule = true;
-exports.setChain = exports.toBTC = exports.toSat = exports.txidToString = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.bech32toScriptPubKey = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
+exports.consoleTrace = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.setChain = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var chain = 'test';
@@ -148,14 +157,6 @@ function getnewaddress() {
     });
 }
 exports.getnewaddress = getnewaddress;
-function bech32toScriptPubKey(a) {
-    var z = bitcoin.address.fromBech32(a);
-    return bitcoin.script.compile([
-        bitcoin.script.number.encode(z.version),
-        bitcoin.address.fromBech32(a).data
-    ]);
-}
-exports.bech32toScriptPubKey = bech32toScriptPubKey;
 function getBlockTemplate(template_request) {
     if (template_request === void 0) { template_request = { rules: ['segwit'] }; }
     return __awaiter(this, void 0, void 0, function () {
@@ -203,6 +204,19 @@ function getTXOut(txid, vout, include_mempool) {
     });
 }
 exports.getTXOut = getTXOut;
+function setChain(c) {
+    chain = c;
+}
+exports.setChain = setChain;
+// Utils
+function bech32toScriptPubKey(a) {
+    var z = bitcoin.address.fromBech32(a);
+    return bitcoin.script.compile([
+        bitcoin.script.number.encode(z.version),
+        bitcoin.address.fromBech32(a).data
+    ]);
+}
+exports.bech32toScriptPubKey = bech32toScriptPubKey;
 function txidToString(txid) {
     if (typeof txid === 'string') {
         return txid;
@@ -220,7 +234,37 @@ function toBTC(sat) {
     return parseFloat((sat * 1e-8).toFixed(8));
 }
 exports.toBTC = toBTC;
-function setChain(c) {
-    chain = c;
-}
-exports.setChain = setChain;
+// from https://stackoverflow.com/a/47296370/13800918, edited
+exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function (methodName) {
+    return [
+        methodName,
+        function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            var initiator = 'unknown place';
+            try {
+                throw new Error();
+            }
+            catch (e) {
+                if (typeof e.stack === 'string') {
+                    var isFirst = true;
+                    for (var _a = 0, _b = e.stack.split('\n'); _a < _b.length; _a++) {
+                        var line = _b[_a];
+                        var matches = line.match(/^\s+at\s+(.*)/);
+                        if (matches) {
+                            if (!isFirst) { // first line - current function
+                                // second line - caller (what we are looking for)
+                                initiator = matches[1];
+                                break;
+                            }
+                            isFirst = false;
+                        }
+                    }
+                }
+            }
+            console[methodName].apply(console, __spreadArray(__spreadArray([], args, false), ['\n', "  at ".concat(initiator)], false));
+        }
+    ];
+}));

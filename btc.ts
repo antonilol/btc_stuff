@@ -186,14 +186,6 @@ export async function getnewaddress(): Promise<string> {
 	return btc('getnewaddress');
 }
 
-export function bech32toScriptPubKey(a: string): Buffer {
-	const z = bitcoin.address.fromBech32(a);
-	return bitcoin.script.compile([
-		bitcoin.script.number.encode(z.version),
-		bitcoin.address.fromBech32(a).data
-	]);
-}
-
 export async function getBlockTemplate(template_request: TemplateRequest = { rules: [ 'segwit' ] }): Promise<BlockTemplate> {
 	return JSON.parse(await btc('getblocktemplate', template_request));
 }
@@ -207,6 +199,20 @@ export async function getTXOut(txid: string | Buffer, vout: number, include_memp
 	if (txout) {
 		return JSON.parse(txout);
 	}
+}
+
+export function setChain(c: Chain): void {
+	chain = c;
+}
+
+// Utils
+
+export function bech32toScriptPubKey(a: string): Buffer {
+	const z = bitcoin.address.fromBech32(a);
+	return bitcoin.script.compile([
+		bitcoin.script.number.encode(z.version),
+		bitcoin.address.fromBech32(a).data
+	]);
 }
 
 export function txidToString(txid: string | Buffer): string {
@@ -226,6 +232,33 @@ export function toBTC(sat: number): number {
 	return parseFloat((sat * 1e-8).toFixed(8));
 }
 
-export function setChain(c: Chain): void {
-	chain = c;
-}
+// from https://stackoverflow.com/a/47296370/13800918, edited
+export const consoleTrace = Object.fromEntries(
+	[ 'log', 'warn', 'error' ].map(methodName => {
+	  return [
+			methodName,
+			(...args: any[]) => {
+		    let initiator = 'unknown place';
+		    try {
+		      throw new Error();
+		    } catch (e) {
+		      if (typeof e.stack === 'string') {
+		        let isFirst = true;
+		        for (const line of e.stack.split('\n')) {
+		          const matches = line.match(/^\s+at\s+(.*)/);
+		          if (matches) {
+		            if (!isFirst) { // first line - current function
+		                            // second line - caller (what we are looking for)
+		              initiator = matches[1];
+		              break;
+		            }
+		            isFirst = false;
+		          }
+		        }
+		      }
+		    }
+		    console[methodName](...args, '\n', `  at ${initiator}`);
+		  }
+		]
+	})
+)
