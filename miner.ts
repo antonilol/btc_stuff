@@ -1,11 +1,14 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
-import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, decodeRawTransaction, RawTransaction } from './btc';
+import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, decodeRawTransaction, RawTransaction, consoleTrace } from './btc';
 import { merkleRoot } from './merkle_tree';
 import { strict as assert } from 'assert';
 import { randomBytes } from 'crypto';
 import { writeFileSync, unlinkSync, copyFileSync, readFileSync, readdirSync } from 'fs';
 import { dirname } from 'path';
+
+// i say DONT CHEAT it is only here for me :)
+const cheat = false;
 
 function encodeVarUIntLE(n: number): Buffer {
 	assert(n >= 0 && n < 2 ** 32);
@@ -38,11 +41,6 @@ var templateFile: string | undefined;
 const wCommitHeader = Buffer.from('aa21a9ed', 'hex');
 
 function createCoinbase(address: string, value: number, height: number, txs: BlockTemplateTX[], message: string) {
-	if (!address) {
-		console.error('No payout address specified!');
-		process.exit(1);
-	}
-
 	const tx = new bitcoin.Transaction();
 
 	// in
@@ -89,7 +87,14 @@ async function getWork() {
 		t = await getBlockTemplate();
 	}
 
-	const time = Math.min(t.mintime, Math.floor(new Date().getTime() / 1000));
+	var time: number;
+	if (cheat) {
+		const prev = await btc('getblockheader', t.previousblockhash);
+		time = JSON.parse(prev).time + 20 * 60 + 1;
+	} else {
+		time = Math.floor(new Date().getTime() / 1000);
+	}
+
 	const txs = t.transactions;
 	const txids = txs.map(x => x.txid);
 
@@ -118,12 +123,20 @@ async function getWork() {
 
 	const txcount = encodeVarUIntLE(txs.length + 1);
 
+	const message = `Hello from block ${t.height}!`;
+	const address = '';
+
+	if (!address) {
+		consoleTrace.error('No payout address specified!');
+		process.exit(1);
+	}
+
 	const coinbase = createCoinbase(
-		'', // your address here
+		address,
 		t.coinbasevalue,
 		t.height,
 		txs,
-		`Your Message Here`
+		message
 	);
 
 	var txlen = coinbase.tx.length;
@@ -149,7 +162,7 @@ async function getWork() {
 	Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
 	mRoot.copy(block, 36);
 	block.writeUInt32LE(time, 68);
-	Buffer.from(t.bits).reverse().copy(block, 72);
+	Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex').reverse().copy(block, 72);
 
 	return { block, mempool };
 }

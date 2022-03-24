@@ -44,6 +44,8 @@ var assert_1 = require("assert");
 var crypto_1 = require("crypto");
 var fs_1 = require("fs");
 var path_1 = require("path");
+// i say DONT CHEAT it is only here for me :)
+var cheat = false;
 function encodeVarUIntLE(n) {
     (0, assert_1.strict)(n >= 0 && n < Math.pow(2, 32));
     var l = 1;
@@ -73,10 +75,6 @@ var templateFile;
 // BIP141
 var wCommitHeader = Buffer.from('aa21a9ed', 'hex');
 function createCoinbase(address, value, height, txs, message) {
-    if (!address) {
-        console.error('No payout address specified!');
-        process.exit(1);
-    }
     var tx = new bitcoin.Transaction();
     // in
     tx.addInput(Buffer.alloc(32), 0xffffffff);
@@ -111,7 +109,7 @@ function createCoinbase(address, value, height, txs, message) {
 }
 function getWork() {
     return __awaiter(this, void 0, void 0, function () {
-        var t, time, txs, txids, mempool, txcount, coinbase, txlen, txoffset, block, o, mRoot;
+        var t, time, prev, txs, txids, mempool, txcount, message, address, coinbase, txlen, txoffset, block, o, mRoot;
         var _this = this;
         return __generator(this, function (_a) {
             switch (_a.label) {
@@ -124,7 +122,16 @@ function getWork() {
                     t = _a.sent();
                     _a.label = 3;
                 case 3:
-                    time = Math.min(t.mintime, Math.floor(new Date().getTime() / 1000));
+                    if (!cheat) return [3 /*break*/, 5];
+                    return [4 /*yield*/, (0, btc_1.btc)('getblockheader', t.previousblockhash)];
+                case 4:
+                    prev = _a.sent();
+                    time = JSON.parse(prev).time + 20 * 60 + 1;
+                    return [3 /*break*/, 6];
+                case 5:
+                    time = Math.floor(new Date().getTime() / 1000);
+                    _a.label = 6;
+                case 6:
                     txs = t.transactions;
                     txids = txs.map(function (x) { return x.txid; });
                     mempool = (0, fs_1.readdirSync)('mempool');
@@ -142,7 +149,7 @@ function getWork() {
                                 }
                             });
                         }); }))];
-                case 4:
+                case 7:
                     (_a.sent()).forEach(function (tx) {
                         if (txids.includes(tx[1].txid)) {
                             return;
@@ -157,8 +164,13 @@ function getWork() {
                         txids.splice(0, 0, tx[1].txid);
                     });
                     txcount = encodeVarUIntLE(txs.length + 1);
-                    coinbase = createCoinbase('', // your address here
-                    t.coinbasevalue, t.height, txs, "Your Message Here");
+                    message = "Hello from block ".concat(t.height, "!");
+                    address = '';
+                    if (!address) {
+                        btc_1.consoleTrace.error('No payout address specified!');
+                        process.exit(1);
+                    }
+                    coinbase = createCoinbase(address, t.coinbasevalue, t.height, txs, message);
                     txlen = coinbase.tx.length;
                     txs.forEach(function (tx) {
                         txlen += tx.data.length / 2;
@@ -179,7 +191,7 @@ function getWork() {
                     Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
                     mRoot.copy(block, 36);
                     block.writeUInt32LE(time, 68);
-                    Buffer.from(t.bits).reverse().copy(block, 72);
+                    Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex').reverse().copy(block, 72);
                     return [2 /*return*/, { block: block, mempool: mempool }];
             }
         });
