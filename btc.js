@@ -36,7 +36,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 exports.__esModule = true;
-exports.setChain = exports.decodeRawTransaction = exports.getBlockTemplate = exports.bech32toScriptPubKey = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
+exports.setChain = exports.toBTC = exports.toSat = exports.txidToString = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.bech32toScriptPubKey = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var chain = 'test';
@@ -185,6 +185,41 @@ function decodeRawTransaction(txHex) {
     });
 }
 exports.decodeRawTransaction = decodeRawTransaction;
+function getTXOut(txid, vout, include_mempool) {
+    if (include_mempool === void 0) { include_mempool = true; }
+    return __awaiter(this, void 0, void 0, function () {
+        var txout;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, btc('gettxout', txidToString(txid), vout, include_mempool)];
+                case 1:
+                    txout = _a.sent();
+                    if (txout) {
+                        return [2 /*return*/, JSON.parse(txout)];
+                    }
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+exports.getTXOut = getTXOut;
+function txidToString(txid) {
+    if (typeof txid === 'string') {
+        return txid;
+    }
+    return Uint8Array.prototype.slice.call(txid).reverse().toString('hex');
+}
+exports.txidToString = txidToString;
+function toSat(BTC) {
+    // prevent floating point quirks: 4.24524546 * 1e8 = 424524545.99999994
+    return Math.round(BTC * 1e8);
+}
+exports.toSat = toSat;
+function toBTC(sat) {
+    // prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
+    return parseFloat((sat * 1e-8).toFixed(8));
+}
+exports.toBTC = toBTC;
 function setChain(c) {
     chain = c;
 }

@@ -62,6 +62,15 @@ export type ScriptType =
 	'nulldata' | 'witness_v0_scripthash' | 'witness_v0_keyhash' |
 	'witness_v1_taproot' | 'witness_unknown'
 
+export interface ScriptPubKey {
+	asm: string,
+	hex: string,
+	reqSigs?: number,
+	type: ScriptType,
+	address?: string,
+	addresses?: string[]
+}
+
 export interface Vin {
 	txid: string,
 	vout: number,
@@ -76,14 +85,7 @@ export interface Vin {
 export interface Vout {
 	value: number,
 	n: number,
-	scriptPubKey: {
-		asm: string,
-		hex: string,
-		reqSigs?: number,
-		type: ScriptType,
-		address?: string,
-		addresses?: string[]
-	}
+	scriptPubKey: ScriptPubKey
 }
 
 export interface RawTransaction {
@@ -96,6 +98,14 @@ export interface RawTransaction {
 	locktime: number,
 	vin: Vin[],
 	vout: Vout[]
+}
+
+export interface TXOut {
+	bestblock: string,
+	confirmations: number,
+	value: number,
+	scriptPubKey: ScriptPubKey,
+	coinbase: boolean
 }
 
 export type Chain = 'main' | 'test' | 'regtest' | 'signet';
@@ -190,6 +200,30 @@ export async function getBlockTemplate(template_request: TemplateRequest = { rul
 
 export async function decodeRawTransaction(txHex: string | Buffer): Promise<RawTransaction> {
 	return JSON.parse(await btc('decoderawtransaction', txHex));
+}
+
+export async function getTXOut(txid: string | Buffer, vout: number, include_mempool: boolean = true): Promise<TXOut | undefined> {
+	const txout = await btc('gettxout', txidToString(txid), vout, include_mempool);
+	if (txout) {
+		return JSON.parse(txout);
+	}
+}
+
+export function txidToString(txid: string | Buffer): string {
+	if (typeof txid === 'string') {
+		return txid;
+	}
+	return Uint8Array.prototype.slice.call(txid).reverse().toString('hex');
+}
+
+export function toSat(BTC: number): number {
+	// prevent floating point quirks: 4.24524546 * 1e8 = 424524545.99999994
+	return Math.round(BTC * 1e8);
+}
+
+export function toBTC(sat: number): number {
+	// prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
+	return parseFloat((sat * 1e-8).toFixed(8));
 }
 
 export function setChain(c: Chain): void {
