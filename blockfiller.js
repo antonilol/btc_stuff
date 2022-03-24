@@ -5,7 +5,7 @@ main();
 async function main() {
 	console.log('Listing UTXOs');
 
-	var s = (await listunspent(0.000005))
+	var s = (await listunspent(0.000005, 1))
 		.filter(u => u.spendable && u.solvable)
 		.filter((u, i, l) => l.slice(0, i).filter(x => x.address == u.address).length < 10);
 
