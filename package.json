@@ -4,11 +4,14 @@
     "build": "tsc *.ts"
   },
   "dependencies": {
-    "@types/node": "^17.0.12",
     "bitcoinjs-lib": "^6.0.1",
     "bs58": "^5.0.0",
     "ecpair": "^2.0.1",
     "tiny-secp256k1": "^2.1.2",
+    "zeromq": "^6.0.0-beta.6"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.12",
     "typescript": "^4.5.5"
   }
 }
