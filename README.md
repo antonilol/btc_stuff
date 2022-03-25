@@ -8,8 +8,10 @@ Bitcoin transaction examples with bitcoinjs-lib
 - nodejs
 - npm
   - bitcoinjs-lib
+  - bs58
   - ecpair
   - tiny-secp256k1
+  - zeromq
 
 
 ### Network
