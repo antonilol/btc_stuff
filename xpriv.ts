@@ -2,11 +2,10 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { createInterface } from 'readline';
 import * as assert from 'assert';
 import * as bs58 from 'bs58';
+import BIP32Factory, { BIP32Interface } from 'bip32';
+import * as curve from 'tiny-secp256k1';
 
-// TODO some key derivation, maybe these libs are needed
-// import * as curve from 'tiny-secp256k1';
-// import ECPairFactory from 'ecpair'
-// const ECPair = ECPairFactory(curve);
+const bip32 = BIP32Factory(curve);
 
 const rl = createInterface({
 	input: process.stdin,
@@ -16,6 +15,7 @@ const rl = createInterface({
 const input = (q: string): Promise<string> => new Promise(r => rl.question(q, r));
 const pad = (s: string, len: number): string => s + ' '.repeat(len - s.length);
 const color = (...colors: number[]): string => colors.length ? `\x1b[${colors.join(';')}m` : '';
+const checksum = (key: Buffer) => bitcoin.crypto.hash256(key.slice(0, 78)).copy(key, 78, 0, 4);
 
 const
 	RESET = 0,
@@ -56,65 +56,157 @@ const versions: Version[] = [
 
 main();
 
+var
+	i: string,
+	k: Buffer,
+	ver: Buffer,
+	depth: number,
+	fingerprint: Buffer,
+	n: number,
+	chain: Buffer,
+	key: Buffer,
+	type: Version,
+	bip32key: BIP32Interface;
 async function main() {
-	var i: string;
-	if (process.argv.length > 2) {
-		i = process.argv[2];
-	} else {
-		i = await input('Enter seed, xpriv or xpub\n> ');
-	}
+	while (true) {
+		i = await input(`\nEnter master/extended key to load or a command${i ? '' : ` (type 'help' for a list of commands)`}\n> `);
+		if (!i) {
+			continue;
+		}
+		const args = i.split(' ');
 
-	// try extended key
-	try {
-		displayExtKey(i);
+		if (args[0] == 'help') {
+			console.log(`
+Commands:
+	help: show this list
+	exit: exit
+	load <key>: loads a key
+	derive <path>: derive the loaded key to a new one. loads the new one
+	info: displays information about the loaded key`);
+		} else if (args[0] == 'exit') {
+			process.exit(0);
+		} else if (args[0] == 'load') {
+			if (args.length > 1) {
+				if (readKey(args[1])) {
+					console.log('Key loaded');
+				}
+			} else {
+				console.log('load requires an argument <key>');
+			}
+		} else if (args[0] == 'derive') {
+			if (args.length > 1) {
+				if (derive(args[1])) {
+					console.log(`New key loaded: ${bs58.encode(k)}`);
+				}
+			} else {
+				console.log('derive requires an argument <path>');
+			}
+		} else if (args[0] == 'info') {
+			displayKey();
+		} else {
+			if (readKey(args[0])) {
+				console.log('Key loaded');
+			}
+		}
 	}
-	catch (e) {
-	}
-
-	// try seed
-	// const words = i.split(' ');
-	// ...
-	console.error('Seed functionality not implemented yet');
-	process.exit(38);
 }
 
-function displayExtKey(i: string) {
-	const k = Buffer.from(bs58.decode(i));
-	assert(k.length == 82);
+function derive(path: string): boolean {
+	try {
+		bip32key = bip32key.derivePath(path);
+	}
+	catch (e) {
+		console.log(e.message);
+		return false;
+	}
+
+	readKey(bip32key.toBase58(), true);
+
+	return true;
+}
+
+function loadKey(s: string): boolean {
+	try {
+		k = Buffer.from(bs58.decode(s));
+		assert(k.length == 82);
+	}
+	catch (e) {
+		console.log('Invalid input');
+		k = undefined;
+		return false;
+	}
+
 	if (bitcoin.crypto.hash256(k.slice(0, 78)).compare(k, 78, 82, 0, 4)) {
-		console.log(color(BOLD, RED) + 'Warning: Invalid checksum' + color(RESET));
+		console.log(color(BOLD, RED) + 'Error: Invalid checksum' + color(RESET));
+		checksum(k);
+		console.log('Key with recalculated checksum (only use if you know what you are doing!):\n' + bs58.encode(k));
+		k = undefined;
+		return false;
 	}
 
-	const ver         = k.slice(0, 4);
-	const depth       = k.readUInt8(4);
-	const fingerprint = k.slice(5, 9);
-	const n           = k.readUInt32BE(9);
-	const chain       = k.slice(13, 45);
-	const key         = k.slice(45, 78);
+	return true;
+}
 
-	console.log(`
-Version:            ${ver.toString('hex')}
-Depth:              ${depth}
-Master fingerprint: ${fingerprint.toString('hex')}
-Child number:       ${n & 0x7fffffff}${n & 0x80000000 ? `'`: ''}
-Chain code:         ${chain.toString('hex')}
-Key:                ${(key[0] ? key : key.slice(1)).toString('hex')}`);
+function readKey(s: string, useOldVersion = false): boolean {
+	if (!loadKey(s)) {
+		return false;
+	}
 
-	const type = versions.find(v => !v.version.compare(ver));
+	if (useOldVersion) {
+		ver.copy(k);
+		checksum(k);
+	} else {
+		ver       = k.slice(0, 4);
+	}
+	depth       = k.readUInt8(4);
+	fingerprint = k.slice(5, 9);
+	n           = k.readUInt32BE(9);
+	chain       = k.slice(13, 45);
+	key         = k.slice(45, 78);
 
-	if (type) {
-		console.log(`
-Network:            ${type.network}
-Key type:           ${type.private ? 'private' : 'public'}
-Script type:        ${type.script}`);
+	type = versions.find(v => !v.version.compare(ver));
+	if (!type) {
+		console.log(`Invalid version: 0x${ver.toString('hex')}`);
+		return false;
+	}
+
+	if (!useOldVersion) {
+		const clone = Buffer.allocUnsafe(82);
+		k.copy(clone, 4, 4, 78);
+		versions
+			.find(v => v.private == type.private && v.network == type.network)
+			.version.copy(clone);
+		checksum(clone);
+
+		bip32key = bip32.fromBase58(bs58.encode(clone), type.network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet);
+	}
+
+	return true;
+}
+
+function displayKey() {
+	if (!k) {
+		console.log('No key loaded');
+		return;
 	}
 
 	console.log(`
+Version:              ${ver.toString('hex')}
+Depth:                ${depth}
+Master fingerprint:   ${fingerprint.toString('hex')}
+Child number:         ${n & 0x7fffffff}${n & 0x80000000 ? `'`: ''}
+Chain code:           ${chain.toString('hex')}
+Key:                  ${(key[0] ? key : key.slice(1)).toString('hex')}
+
+Network:              ${type.network}
+Key type:             ${type.private ? 'private' : 'public'}
+Electrum script type: ${type.script}
+
 All Electrum defined master key versions:
 Network     Key type     Script type     Key`);
-	versions.forEach((v, i) => {
+	versions.filter(v => v.private == type.private).forEach((v, i) => {
 		v.version.copy(k);
-		bitcoin.crypto.hash256(k.slice(0, 78)).copy(k, 78, 0, 4);
+		checksum(k);
 		const colors = [];
 		if (i & 1) {
 			colors.push(REVERSED);
@@ -131,6 +223,4 @@ Network     Key type     Script type     Key`);
 			color(RESET)
 		);
 	});
-
-	process.exit(0);
 }

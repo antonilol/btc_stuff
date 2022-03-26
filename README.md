@@ -7,6 +7,7 @@ Bitcoin transaction examples with bitcoinjs-lib
 - A running Bitcoin node
 - nodejs
 - npm
+  - bip32
   - bitcoinjs-lib
   - bs58
   - ecpair

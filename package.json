@@ -4,6 +4,7 @@
     "build": "tsc *.ts"
   },
   "dependencies": {
+    "bip32": "^3.0.1",
     "bitcoinjs-lib": "^6.0.1",
     "bs58": "^5.0.0",
     "ecpair": "^2.0.1",
