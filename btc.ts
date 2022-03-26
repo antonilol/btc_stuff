@@ -28,6 +28,7 @@ export interface BlockTemplateTX {
 	txid: string,
 	hash: string,
 	depends: number[],
+	TXdepends: BlockTemplateTX[],
 	fee?: number,
 	sigops?: number,
 	weight: number
@@ -187,7 +188,9 @@ export async function getnewaddress(): Promise<string> {
 }
 
 export async function getBlockTemplate(template_request: TemplateRequest = { rules: [ 'segwit' ] }): Promise<BlockTemplate> {
-	return JSON.parse(await btc('getblocktemplate', template_request));
+	const template: BlockTemplate = JSON.parse(await btc('getblocktemplate', template_request));
+	updateTXDepends(template);
+	return template;
 }
 
 export async function decodeRawTransaction(txHex: string | Buffer): Promise<RawTransaction> {
@@ -206,6 +209,66 @@ export function setChain(c: Chain): void {
 }
 
 // Utils
+
+// remove a transaction from a templateFile
+// removes all dependendencies
+// subtracts fee of removed transactions from coinbasevalue
+// returns all removed transactions
+export function removeTransaction(template: BlockTemplate, txid: string): BlockTemplateTX[] {
+	const txs = template.transactions;
+	const tx = txs.find(x => x.txid == txid);
+	if (!tx) {
+		return [];
+	}
+	const toRemove = [ tx ];
+	const removed: BlockTemplateTX[] = [];
+
+	while (toRemove.length) {
+		const tx = toRemove.shift();
+		toRemove.push(...tx.TXdepends);
+		removed.push(...txs.splice(txs.indexOf(tx), 1));
+		template.coinbasevalue -= tx.fee;
+	}
+
+	updateNumberDepends(template);
+
+	return removed;
+}
+
+export async function insertTransaction(template: BlockTemplate, data: string | Buffer): Promise<boolean> {
+	const rawtx = await decodeRawTransaction(data);
+
+	if (template.transactions.find(x => x.txid == rawtx.txid)) {
+		return false;
+	}
+
+	const tx: BlockTemplateTX = {
+		data: Buffer.isBuffer(data) ? data.toString('hex') : data,
+		txid: rawtx.txid,
+		hash: rawtx.hash,
+		depends: [],
+		TXdepends: template.transactions.filter(x => rawtx.vin.map(y => y.txid).includes(x.txid)),
+		weight: rawtx.weight
+	}
+
+	template.transactions.push(tx);
+
+	updateNumberDepends(template);
+
+	return true;
+}
+
+function updateTXDepends(template: BlockTemplate): void {
+	for (const tx of template.transactions) {
+		tx.TXdepends = tx.depends.map(i => template.transactions[i - 1]);
+	}
+}
+
+function updateNumberDepends(template: BlockTemplate): void {
+	for (const tx of template.transactions) {
+		tx.depends = tx.TXdepends.map(tx => template.transactions.indexOf(tx) + 1);
+	}
+}
 
 export function bech32toScriptPubKey(a: string): Buffer {
 	const z = bitcoin.address.fromBech32(a);

@@ -35,6 +35,15 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
 exports.__esModule = true;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
@@ -78,12 +87,9 @@ function createCoinbase(address, value, height, txs, message) {
     var tx = new bitcoin.Transaction();
     // in
     tx.addInput(Buffer.alloc(32), 0xffffffff);
-    tx.setInputScript(0, bitcoin.script.compile([
-        bitcoin.script.number.encode(height),
-        Buffer.concat([
-            Buffer.from(message),
-            Buffer.from('f09f87acf09f87a7f09fa4a2f09fa4ae', 'hex') // <-- BIP69420
-        ])
+    tx.setInputScript(0, Buffer.concat([
+        bitcoin.script.compile([bitcoin.script.number.encode(height)]),
+        Buffer.from(message)
     ]));
     tx.setWitness(0, [Buffer.alloc(32)]);
     // block reward + fees
@@ -109,63 +115,46 @@ function createCoinbase(address, value, height, txs, message) {
 }
 function getWork() {
     return __awaiter(this, void 0, void 0, function () {
-        var t, time, prev, txs, txids, mempool, txcount, message, address, coinbase, txlen, txoffset, block, o, mRoot;
-        var _this = this;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
+        var t, time, prev, txs, mempool, _i, _a, tx, txcount, message, address, coinbase, txlen, txoffset, block, o, mRoot;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
                 case 0:
                     if (!templateFile) return [3 /*break*/, 1];
                     t = JSON.parse((0, fs_1.readFileSync)(templateFile).toString());
                     return [3 /*break*/, 3];
                 case 1: return [4 /*yield*/, (0, btc_1.getBlockTemplate)()];
                 case 2:
-                    t = _a.sent();
-                    _a.label = 3;
+                    t = _b.sent();
+                    _b.label = 3;
                 case 3:
                     if (!cheat) return [3 /*break*/, 5];
                     return [4 /*yield*/, (0, btc_1.btc)('getblockheader', t.previousblockhash)];
                 case 4:
-                    prev = _a.sent();
+                    prev = _b.sent();
                     time = JSON.parse(prev).time + 20 * 60 + 1;
                     return [3 /*break*/, 6];
                 case 5:
                     time = Math.floor(new Date().getTime() / 1000);
-                    _a.label = 6;
+                    _b.label = 6;
                 case 6:
                     txs = t.transactions;
-                    txids = txs.map(function (x) { return x.txid; });
                     mempool = (0, fs_1.readdirSync)('mempool');
-                    return [4 /*yield*/, Promise.all(mempool.map(function (f) { return __awaiter(_this, void 0, void 0, function () {
-                            var hex, _a;
-                            return __generator(this, function (_b) {
-                                switch (_b.label) {
-                                    case 0:
-                                        hex = (0, fs_1.readFileSync)("mempool/".concat(f)).toString().split('\n').find(function (x) { return x; });
-                                        _a = [hex];
-                                        return [4 /*yield*/, (0, btc_1.decodeRawTransaction)(hex)];
-                                    case 1: return [2 /*return*/, _a.concat([
-                                            _b.sent()
-                                        ])];
-                                }
-                            });
-                        }); }))];
+                    _i = 0, _a = mempool.map(function (f) { return (0, fs_1.readFileSync)("mempool/".concat(f)).toString().trim(); });
+                    _b.label = 7;
                 case 7:
-                    (_a.sent()).forEach(function (tx) {
-                        if (txids.includes(tx[1].txid)) {
-                            return;
-                        }
-                        txs.splice(0, 0, {
-                            data: tx[0],
-                            txid: tx[1].txid,
-                            hash: tx[1].hash,
-                            depends: [],
-                            weight: 0
-                        });
-                        txids.splice(0, 0, tx[1].txid);
-                    });
+                    if (!(_i < _a.length)) return [3 /*break*/, 10];
+                    tx = _a[_i];
+                    return [4 /*yield*/, (0, btc_1.insertTransaction)(t, tx)];
+                case 8:
+                    _b.sent();
+                    _b.label = 9;
+                case 9:
+                    _i++;
+                    return [3 /*break*/, 7];
+                case 10:
                     txcount = encodeVarUIntLE(txs.length + 1);
-                    message = "Hello from block ".concat(t.height, "!");
-                    address = '';
+                    message = 'mined with miner.ts from github.com/antonilol/btc_stuff';
+                    address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
                     if (!address) {
                         btc_1.consoleTrace.error('No payout address specified!');
                         process.exit(1);
@@ -185,8 +174,7 @@ function getWork() {
                         data.copy(block, o);
                         o += data.length;
                     });
-                    txids.splice(0, 0, coinbase.txid);
-                    mRoot = (0, merkle_tree_1.merkleRoot)(txids);
+                    mRoot = (0, merkle_tree_1.merkleRoot)(__spreadArray([coinbase.txid], txs.map(function (x) { return x.txid; }), true));
                     block.writeUInt32LE(t.version);
                     Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
                     mRoot.copy(block, 36);

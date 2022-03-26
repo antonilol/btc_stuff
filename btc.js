@@ -45,7 +45,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.setChain = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
+exports.consoleTrace = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var chain = 'test';
@@ -160,13 +160,16 @@ exports.getnewaddress = getnewaddress;
 function getBlockTemplate(template_request) {
     if (template_request === void 0) { template_request = { rules: ['segwit'] }; }
     return __awaiter(this, void 0, void 0, function () {
-        var _a, _b;
+        var template, _a, _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
                 case 0:
                     _b = (_a = JSON).parse;
                     return [4 /*yield*/, btc('getblocktemplate', template_request)];
-                case 1: return [2 /*return*/, _b.apply(_a, [_c.sent()])];
+                case 1:
+                    template = _b.apply(_a, [_c.sent()]);
+                    updateTXDepends(template);
+                    return [2 /*return*/, template];
             }
         });
     });
@@ -209,6 +212,67 @@ function setChain(c) {
 }
 exports.setChain = setChain;
 // Utils
+// remove a transaction from a templateFile
+// removes all dependendencies
+// subtracts fee of removed transactions from coinbasevalue
+// returns all removed transactions
+function removeTransaction(template, txid) {
+    var txs = template.transactions;
+    var tx = txs.find(function (x) { return x.txid == txid; });
+    if (!tx) {
+        return [];
+    }
+    var toRemove = [tx];
+    var removed = [];
+    while (toRemove.length) {
+        var tx_1 = toRemove.shift();
+        toRemove.push.apply(toRemove, tx_1.TXdepends);
+        removed.push.apply(removed, txs.splice(txs.indexOf(tx_1), 1));
+        template.coinbasevalue -= tx_1.fee;
+    }
+    updateNumberDepends(template);
+    return removed;
+}
+exports.removeTransaction = removeTransaction;
+function insertTransaction(template, data) {
+    return __awaiter(this, void 0, void 0, function () {
+        var rawtx, tx;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, decodeRawTransaction(data)];
+                case 1:
+                    rawtx = _a.sent();
+                    if (template.transactions.find(function (x) { return x.txid == rawtx.txid; })) {
+                        return [2 /*return*/, false];
+                    }
+                    tx = {
+                        data: Buffer.isBuffer(data) ? data.toString('hex') : data,
+                        txid: rawtx.txid,
+                        hash: rawtx.hash,
+                        depends: [],
+                        TXdepends: template.transactions.filter(function (x) { return rawtx.vin.map(function (y) { return y.txid; }).includes(x.txid); }),
+                        weight: rawtx.weight
+                    };
+                    template.transactions.push(tx);
+                    updateNumberDepends(template);
+                    return [2 /*return*/, true];
+            }
+        });
+    });
+}
+exports.insertTransaction = insertTransaction;
+function updateTXDepends(template) {
+    for (var _i = 0, _a = template.transactions; _i < _a.length; _i++) {
+        var tx = _a[_i];
+        tx.TXdepends = tx.depends.map(function (i) { return template.transactions[i - 1]; });
+    }
+}
+function updateNumberDepends(template) {
+    for (var _i = 0, _a = template.transactions; _i < _a.length; _i++) {
+        var tx = _a[_i];
+        tx.depends = tx.TXdepends.map(function (tx) { return template.transactions.indexOf(tx) + 1; });
+    }
+}
 function bech32toScriptPubKey(a) {
     var z = bitcoin.address.fromBech32(a);
     return bitcoin.script.compile([

@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
-import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, decodeRawTransaction, RawTransaction, consoleTrace } from './btc';
+import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, consoleTrace, insertTransaction } from './btc';
 import { merkleRoot } from './merkle_tree';
 import { strict as assert } from 'assert';
 import { randomBytes } from 'crypto';
@@ -45,12 +45,9 @@ function createCoinbase(address: string, value: number, height: number, txs: Blo
 
 	// in
 	tx.addInput(Buffer.alloc(32), 0xffffffff);
-	tx.setInputScript(0, bitcoin.script.compile([
-		bitcoin.script.number.encode(height),
-		Buffer.concat([
-			Buffer.from(message),
-			Buffer.from('f09f87acf09f87a7f09fa4a2f09fa4ae', 'hex') // <-- BIP69420
-		])
+	tx.setInputScript(0, Buffer.concat([
+		bitcoin.script.compile([ bitcoin.script.number.encode(height) ]),
+		Buffer.from(message)
 	]));
 	tx.setWitness(0, [ Buffer.alloc(32) ]);
 
@@ -96,35 +93,16 @@ async function getWork() {
 	}
 
 	const txs = t.transactions;
-	const txids = txs.map(x => x.txid);
 
 	const mempool = readdirSync('mempool');
-	(await Promise.all(
-		mempool.map(async (f): Promise<[ string, RawTransaction ]> => {
-			const hex = readFileSync(`mempool/${f}`).toString().split('\n').find(x => x);
-			return [
-				hex,
-				await decodeRawTransaction(hex)
-			];
-		})
-	)).forEach(tx => {
-		if (txids.includes(tx[1].txid)) {
-			return;
-		}
-		txs.splice(0, 0, {
-			data: tx[0],
-			txid: tx[1].txid,
-			hash: tx[1].hash,
-			depends: [],
-			weight: 0
-		});
-		txids.splice(0, 0, tx[1].txid);
-	});
+	for (const tx of mempool.map(f => readFileSync(`mempool/${f}`).toString().trim())) {
+		await insertTransaction(t, tx);
+	}
 
 	const txcount = encodeVarUIntLE(txs.length + 1);
 
-	const message = `Hello from block ${t.height}!`;
-	const address = '';
+	const message = 'mined with miner.ts from github.com/antonilol/btc_stuff';
+	const address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
 
 	if (!address) {
 		consoleTrace.error('No payout address specified!');
@@ -155,8 +133,7 @@ async function getWork() {
 		o += data.length;
 	});
 
-	txids.splice(0, 0, coinbase.txid);
-	const mRoot = merkleRoot(txids);
+	const mRoot = merkleRoot([ coinbase.txid, ...txs.map(x => x.txid) ]);
 
 	block.writeUInt32LE(t.version);
 	Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
