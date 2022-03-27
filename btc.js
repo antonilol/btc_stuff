@@ -228,8 +228,8 @@ function removeTransaction(template, txid) {
         var tx_1 = toRemove.shift();
         toRemove.push.apply(toRemove, tx_1.TXdepends);
         removed.push.apply(removed, txs.splice(txs.indexOf(tx_1), 1));
-        template.coinbasevalue -= tx_1.fee;
     }
+    template.coinbasevalue -= removed.reduce(function (v, x) { return v + x.fee; }, 0);
     updateNumberDepends(template);
     return removed;
 }

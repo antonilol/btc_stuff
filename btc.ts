@@ -227,8 +227,9 @@ export function removeTransaction(template: BlockTemplate, txid: string): BlockT
 		const tx = toRemove.shift();
 		toRemove.push(...tx.TXdepends);
 		removed.push(...txs.splice(txs.indexOf(tx), 1));
-		template.coinbasevalue -= tx.fee;
 	}
+
+	template.coinbasevalue -= removed.reduce((v, x) => v + x.fee, 0);
 
 	updateNumberDepends(template);
 
