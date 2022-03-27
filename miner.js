@@ -234,9 +234,15 @@ function main() {
         });
     });
 }
+var first = true;
 function mine(header) {
     return new Promise(function (r, e) {
-        var p = (0, child_process_1.spawn)(minerd, [header.toString('hex')]);
+        var args = [header.toString('hex')];
+        if (first) {
+            first = false;
+            args.push('info');
+        }
+        var p = (0, child_process_1.spawn)(minerd, args);
         var out = '';
         p.stdout.setEncoding('utf8');
         p.stdout.on('data', function (data) { return out += data.toString(); });

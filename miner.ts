@@ -185,9 +185,16 @@ async function main() {
 	}
 }
 
+var first = true;
+
 function mine(header: Buffer): Promise<Buffer | void> {
 	return new Promise((r, e) => {
-		const p = spawn(minerd, [ header.toString('hex') ]);
+		const args = [ header.toString('hex') ];
+		if (first) {
+			first = false;
+			args.push('info');
+		}
+		const p = spawn(minerd, args);
 
 		var out = ''
 
