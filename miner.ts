@@ -1,11 +1,13 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
-import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, consoleTrace, insertTransaction } from './btc';
+import { btc, bech32toScriptPubKey, getBlockTemplate, BlockTemplate, BlockTemplateTX, consoleTrace, insertTransaction, removeTransaction } from './btc';
 import { merkleRoot } from './merkle_tree';
 import { strict as assert } from 'assert';
 import { randomBytes } from 'crypto';
 import { writeFileSync, unlinkSync, copyFileSync, readFileSync, readdirSync } from 'fs';
 import { dirname } from 'path';
+
+const segwit = true;
 
 // i say DONT CHEAT it is only here for me :)
 const cheat = false;
@@ -47,27 +49,30 @@ function createCoinbase(address: string, value: number, height: number, txs: Blo
 	tx.addInput(Buffer.alloc(32), 0xffffffff);
 	tx.setInputScript(0, Buffer.concat([
 		bitcoin.script.compile([ bitcoin.script.number.encode(height) ]),
+		randomBytes(4),
 		Buffer.from(message)
 	]));
-	tx.setWitness(0, [ Buffer.alloc(32) ]);
 
 	// block reward + fees
 	tx.addOutput(bech32toScriptPubKey(address), value);
 
-	// OP_RETURN with witness commitment
-	const wtxids: (string | Buffer)[] = txs.map(x => x.hash);
-	wtxids.splice(0, 0, Buffer.alloc(32));
-	tx.addOutput(bitcoin.script.compile([
-		bitcoin.opcodes.OP_RETURN,
-		Buffer.concat([
-			wCommitHeader,
-			bitcoin.crypto.hash256(Buffer.concat([
-				merkleRoot(wtxids),
-				Buffer.alloc(32)
-			]))
-		]),
-		randomBytes(4)
-	]), 0);
+	if (segwit) {
+		// OP_RETURN with witness commitment
+		const wtxids: (string | Buffer)[] = txs.map(x => x.hash);
+		wtxids.splice(0, 0, Buffer.alloc(32));
+		tx.addOutput(bitcoin.script.compile([
+			bitcoin.opcodes.OP_RETURN,
+			Buffer.concat([
+				wCommitHeader,
+				bitcoin.crypto.hash256(Buffer.concat([
+					merkleRoot(wtxids),
+					Buffer.alloc(32)
+				]))
+			])
+		]), 0);
+
+		tx.setWitness(0, [ Buffer.alloc(32) ]);
+	}
 
 	// serialize
 	const coinbase = tx.toBuffer();
@@ -97,6 +102,16 @@ async function getWork() {
 	const mempool = readdirSync('mempool');
 	for (const tx of mempool.map(f => readFileSync(`mempool/${f}`).toString().trim())) {
 		await insertTransaction(t, tx);
+	}
+
+	if (!segwit) {
+		var toRemove: BlockTemplateTX;
+		var removed = 0;
+		while (toRemove = t.transactions.find(x => x.hash != x.txid)) {
+			removed += removeTransaction(t, toRemove.txid).length;
+		}
+		console.log(`SegWit is disabled`);
+		console.log(`Excluded ${removed} SegWit transaction from the block`);
 	}
 
 	const txcount = encodeVarUIntLE(txs.length + 1);

@@ -53,6 +53,7 @@ var assert_1 = require("assert");
 var crypto_1 = require("crypto");
 var fs_1 = require("fs");
 var path_1 = require("path");
+var segwit = true;
 // i say DONT CHEAT it is only here for me :)
 var cheat = false;
 function encodeVarUIntLE(n) {
@@ -89,25 +90,27 @@ function createCoinbase(address, value, height, txs, message) {
     tx.addInput(Buffer.alloc(32), 0xffffffff);
     tx.setInputScript(0, Buffer.concat([
         bitcoin.script.compile([bitcoin.script.number.encode(height)]),
+        (0, crypto_1.randomBytes)(4),
         Buffer.from(message)
     ]));
-    tx.setWitness(0, [Buffer.alloc(32)]);
     // block reward + fees
     tx.addOutput((0, btc_1.bech32toScriptPubKey)(address), value);
-    // OP_RETURN with witness commitment
-    var wtxids = txs.map(function (x) { return x.hash; });
-    wtxids.splice(0, 0, Buffer.alloc(32));
-    tx.addOutput(bitcoin.script.compile([
-        bitcoin.opcodes.OP_RETURN,
-        Buffer.concat([
-            wCommitHeader,
-            bitcoin.crypto.hash256(Buffer.concat([
-                (0, merkle_tree_1.merkleRoot)(wtxids),
-                Buffer.alloc(32)
-            ]))
-        ]),
-        (0, crypto_1.randomBytes)(4)
-    ]), 0);
+    if (segwit) {
+        // OP_RETURN with witness commitment
+        var wtxids = txs.map(function (x) { return x.hash; });
+        wtxids.splice(0, 0, Buffer.alloc(32));
+        tx.addOutput(bitcoin.script.compile([
+            bitcoin.opcodes.OP_RETURN,
+            Buffer.concat([
+                wCommitHeader,
+                bitcoin.crypto.hash256(Buffer.concat([
+                    (0, merkle_tree_1.merkleRoot)(wtxids),
+                    Buffer.alloc(32)
+                ]))
+            ])
+        ]), 0);
+        tx.setWitness(0, [Buffer.alloc(32)]);
+    }
     // serialize
     var coinbase = tx.toBuffer();
     var txid = tx.getId();
@@ -115,7 +118,7 @@ function createCoinbase(address, value, height, txs, message) {
 }
 function getWork() {
     return __awaiter(this, void 0, void 0, function () {
-        var t, time, prev, txs, mempool, _i, _a, tx, txcount, message, address, coinbase, txlen, txoffset, block, o, mRoot;
+        var t, time, prev, txs, mempool, _i, _a, tx, toRemove, removed, txcount, message, address, coinbase, txlen, txoffset, block, o, mRoot;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -152,6 +155,14 @@ function getWork() {
                     _i++;
                     return [3 /*break*/, 7];
                 case 10:
+                    if (!segwit) {
+                        removed = 0;
+                        while (toRemove = t.transactions.find(function (x) { return x.hash != x.txid; })) {
+                            removed += (0, btc_1.removeTransaction)(t, toRemove.txid).length;
+                        }
+                        console.log("SegWit is disabled");
+                        console.log("Excluded ".concat(removed, " SegWit transaction from the block"));
+                    }
                     txcount = encodeVarUIntLE(txs.length + 1);
                     message = 'mined with miner.ts from github.com/antonilol/btc_stuff';
                     address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
