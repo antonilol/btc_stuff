@@ -45,9 +45,10 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
+exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
+var readline_1 = require("readline");
 var chain = 'test';
 function btc() {
     var args = [];
@@ -298,6 +299,12 @@ function toBTC(sat) {
     return parseFloat((sat * 1e-8).toFixed(8));
 }
 exports.toBTC = toBTC;
+var rl = (0, readline_1.createInterface)({
+    input: process.stdin,
+    output: process.stdout
+});
+var input = function (q) { return new Promise(function (r) { return rl.question(q, r); }); };
+exports.input = input;
 // from https://stackoverflow.com/a/47296370/13800918, edited
 exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function (methodName) {
     return [

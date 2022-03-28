@@ -1,16 +1,8 @@
-const { btc, send, listunspent, getnewaddress, bech32toScriptPubKey } = require('./btc');
+const { btc, send, listunspent, getnewaddress, bech32toScriptPubKey, input } = require('./btc');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_ALL;
 const ECPair = require('ecpair').ECPairFactory(require('tiny-secp256k1'));
-const readline = require('readline');
-
-const rl = readline.createInterface({
-	input: process.stdin,
-	output: process.stdout
-});
-
-const input = q => new Promise(r => rl.question(q, r));
 
 main();
 

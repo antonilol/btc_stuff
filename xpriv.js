@@ -36,18 +36,13 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 exports.__esModule = true;
+var btc_1 = require("./btc");
 var bitcoin = require("bitcoinjs-lib");
-var readline_1 = require("readline");
 var assert = require("assert");
 var bs58 = require("bs58");
 var bip32_1 = require("bip32");
 var curve = require("tiny-secp256k1");
 var bip32 = (0, bip32_1["default"])(curve);
-var rl = (0, readline_1.createInterface)({
-    input: process.stdin,
-    output: process.stdout
-});
-var input = function (q) { return new Promise(function (r) { return rl.question(q, r); }); };
 var pad = function (s, len) { return s + ' '.repeat(len - s.length); };
 var color = function () {
     var colors = [];
@@ -89,7 +84,7 @@ function main() {
             switch (_a.label) {
                 case 0:
                     if (!true) return [3 /*break*/, 2];
-                    return [4 /*yield*/, input("\nEnter master/extended key to load or a command".concat(i ? '' : " (type 'help' for a list of commands)", "\n> "))];
+                    return [4 /*yield*/, (0, btc_1.input)("\nEnter master/extended key to load or a command".concat(i ? '' : " (type 'help' for a list of commands)", "\n> "))];
                 case 1:
                     i = _a.sent();
                     if (!i) {

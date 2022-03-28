@@ -1,5 +1,5 @@
+import { input } from './btc'
 import * as bitcoin from 'bitcoinjs-lib';
-import { createInterface } from 'readline';
 import * as assert from 'assert';
 import * as bs58 from 'bs58';
 import BIP32Factory, { BIP32Interface } from 'bip32';
@@ -7,12 +7,6 @@ import * as curve from 'tiny-secp256k1';
 
 const bip32 = BIP32Factory(curve);
 
-const rl = createInterface({
-	input: process.stdin,
-	output: process.stdout
-});
-
-const input = (q: string): Promise<string> => new Promise(r => rl.question(q, r));
 const pad = (s: string, len: number): string => s + ' '.repeat(len - s.length);
 const color = (...colors: number[]): string => colors.length ? `\x1b[${colors.join(';')}m` : '';
 const checksum = (key: Buffer) => bitcoin.crypto.hash256(key.slice(0, 78)).copy(key, 78, 0, 4);

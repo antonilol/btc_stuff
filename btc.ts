@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
+import { createInterface } from 'readline';
 
 export interface UTXO {
 	txid: string,
@@ -295,6 +296,13 @@ export function toBTC(sat: number): number {
 	// prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
 	return parseFloat((sat * 1e-8).toFixed(8));
 }
+
+const rl = createInterface({
+	input: process.stdin,
+	output: process.stdout
+});
+
+export const input = (q: string): Promise<string> => new Promise(r => rl.question(q, r));
 
 // from https://stackoverflow.com/a/47296370/13800918, edited
 export const consoleTrace = Object.fromEntries(

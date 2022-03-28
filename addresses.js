@@ -1,20 +1,13 @@
+const { input } = require('./btc');
 const bitcoin = require('bitcoinjs-lib');
 const hashtype = bitcoin.Transaction.SIGHASH_ALL;
 const curve = require('tiny-secp256k1');
 const ECPair = require('ecpair').ECPairFactory(curve);
-const readline = require('readline');
 const assert = require('assert');
 const mainnet = bitcoin.networks.bitcoin;
 const testnet = bitcoin.networks.testnet;
 
 bitcoin.networks.mainnet = mainnet;
-
-const rl = readline.createInterface({
-	input: process.stdin,
-	output: process.stdout
-});
-
-const input = q => new Promise(r => rl.question(q, r));
 
 function getNetwork(p) {
 	var net;
