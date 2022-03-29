@@ -3,16 +3,38 @@
 <head>
 	<title>Bitcoin Script Editor</title>
 	<style>
-		#t div {
-			float: left;
-			margin: 4px;
-			width: calc(25% - 8px);
+		html {
+			margin: 0;
+			padding: 0;
+			width: 100vw;
+			height: 100vh;
 		}
 
-		#t textarea {
+		body {
+			margin: 4px;
+			padding: 0;
+			width: calc(100vw - 8px);
+			height: calc(100vh - 8px);
+		}
+
+		body > div {
+			float: left;
+			margin: 4px;
+			width: calc(100% / 3 - 8px);
+		}
+
+		textarea, #analysis {
+			border: 1px solid #777;
+			padding: 4px;
+			width: calc(100% - 10px);
 			font: 15px monospace;
 			height: 20em;
-			width: calc(100% - 6px);
+			resize: none;
+			border-radius: 5px;
+		}
+
+		#analysis {
+			height: calc(20em + 39px);
 		}
 
 		.error {
@@ -28,28 +50,29 @@
 	</style>
 </head>
 <body>
-<div id="t">
+
 	<div>
 		Bitcoin script
 		<br>
 		<textarea id="asm"></textarea>
 		<br>
-		<pre class="error" id="asme"></pre>
+		<pre class="error" id="asm-error"></pre>
 	</div>
 	<div>
 		hex
 		<br>
 		<textarea id="hex"></textarea>
 		<br>
-		<pre class="error" id="hexe"></pre>
+		<pre class="error" id="hex-error"></pre>
 	</div>
-	<div style="width: calc(50% - 8px);">
-		javascript (NodeJS)
+	<div>
+		Analysis
 		<br>
-		<textarea id="js" readonly></textarea>
+		<div id="analysis"></div>
 	</div>
-</div>
-<script src="opcodes.js"></script>
-<script src="script.js"></script>
+
+	<script src="opcodes.js"></script>
+	<script src="script.js"></script>
+
 </body>
 </html>
