@@ -297,12 +297,16 @@ export function toBTC(sat: number): number {
 	return parseFloat((sat * 1e-8).toFixed(8));
 }
 
-const rl = createInterface({
-	input: process.stdin,
-	output: process.stdout
-});
-
-export const input = (q: string): Promise<string> => new Promise(r => rl.question(q, r));
+export function input(q: string): Promise<string> {
+	const rl = createInterface({
+		input: process.stdin,
+		output: process.stdout
+	});
+	return new Promise(r => rl.question(q, a => {
+		r(a);
+		rl.close();
+	}));
+}
 
 // from https://stackoverflow.com/a/47296370/13800918, edited
 export const consoleTrace = Object.fromEntries(

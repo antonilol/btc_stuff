@@ -299,11 +299,16 @@ function toBTC(sat) {
     return parseFloat((sat * 1e-8).toFixed(8));
 }
 exports.toBTC = toBTC;
-var rl = (0, readline_1.createInterface)({
-    input: process.stdin,
-    output: process.stdout
-});
-var input = function (q) { return new Promise(function (r) { return rl.question(q, r); }); };
+function input(q) {
+    var rl = (0, readline_1.createInterface)({
+        input: process.stdin,
+        output: process.stdout
+    });
+    return new Promise(function (r) { return rl.question(q, function (a) {
+        r(a);
+        rl.close();
+    }); });
+}
 exports.input = input;
 // from https://stackoverflow.com/a/47296370/13800918, edited
 exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function (methodName) {
