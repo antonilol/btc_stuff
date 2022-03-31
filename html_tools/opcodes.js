@@ -139,5 +139,14 @@ const opcodes =
 	// Opcode added by BIP 342 (Tapscript)
 	OP_CHECKSIGADD: 0xba,
 
-	OP_INVALIDOPCODE: 0xff,
+	OP_INVALIDOPCODE: 0xff
 };
+
+const aliases =
+{
+	OP_CLTV: opcodes.OP_CHECKLOCKTIMEVERIFY,
+	OP_CSV: opcodes.OP_CHECKSEQUENCEVERIFY
+};
+
+// just add them to opcodes
+Object.entries(aliases).forEach(e => opcodes[e[0]] = e[1]);
