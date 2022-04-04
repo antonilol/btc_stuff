@@ -55,7 +55,7 @@ const ONE = Buffer.from(
 	'hex'
 );
 
-const tweak = tapTweak(ecpair1.publicKey, tapBranch(leaf, Buffer.alloc(32))); // Buffer.alloc(32) zero-allocates 32 bytes (a 0 uint256)
+const tweak = tapTweak(ecpair1.publicKey, leaf);
 
 function createOutput(publicKey: Buffer) {
 	// x-only pubkey (remove 1 byte y parity)
@@ -89,8 +89,8 @@ const vout = 0;
 tx.version = 2;
 tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
 
-const fee_sat = 150;
-const input_sat = 10000;
+const fee_sat = 100;
+const input_sat = 1000;
 
 tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), input_sat - fee_sat);
 
@@ -114,7 +114,7 @@ if (keyspend) {
 	const signature = Buffer.from(curve.signSchnorr(sighash, ecpair2.privateKey));
 	const pub = ecpair1.publicKey;
 	pub.writeUint8(0xc0 | (pub[0] & 1));
-	const ctrl = Buffer.concat([ pub, Buffer.alloc(32) ]);
+	const ctrl = Buffer.concat([ pub ]);
 	tx.setWitness(0, [
 		signature,
 		signature,
