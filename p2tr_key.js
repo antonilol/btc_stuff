@@ -38,7 +38,7 @@ function createKeySpendOutput(publicKey) {
 		if (tweakResult === null) throw new Error('Invalid Tweak');
 		const { xOnlyPubkey: tweaked } = tweakResult;
 		// incomplete scriptPubkey
-		return tweaked;
+		return Buffer.from(tweaked);
 	}
 	return myXOnlyPubkey;
 }
@@ -57,9 +57,9 @@ function sign(messageHash, key) {
 		);
 		const newPrivateKey = curve.privateAdd(privateKey, tweakHash);
 		if (newPrivateKey === null) throw new Error('Invalid Tweak');
-		return curve.signSchnorr(messageHash, newPrivateKey);
+		return Buffer.from(curve.signSchnorr(messageHash, newPrivateKey));
 	}
-	return curve.signSchnorr(messageHash, privateKey);
+	return Buffer.from(curve.signSchnorr(messageHash, privateKey));
 }
 
 const tr = createKeySpendOutput(ecpair.publicKey);
@@ -77,15 +77,20 @@ tx.addInput(Buffer.from(txid, 'hex').reverse(), vout);
 const fee_sat = 100;
 const input_sat = 1000;
 
-tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), input_sat-fee_sat);
+tx.addOutput(bech32toScriptPubKey('tb1qbech32addresshere'), input_sat - fee_sat);
 
 const sighash = tx.hashForWitnessV1(
 	0, // which input
-	[ Buffer.concat([ Buffer.from('5120', 'hex'), tr ]) ], // All previous outputs of all inputs
+	[
+		bitcoin.script.compile([
+			bitcoin.opcodes.OP_1,
+			tr
+		])
+	], // All previous outputs of all inputs
 	[ input_sat ], // All previous values of all inputs
 	hashtype // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
 );
-const signature = Buffer.from(sign(sighash, ecpair));
+const signature = sign(sighash, ecpair);
 tx.setWitness(0, [ signature ]);
 
 send(tx.toHex()).then(console.log);
