@@ -45,11 +45,18 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = void 0;
+exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.networks = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var readline_1 = require("readline");
+exports.networks = {
+    main: bitcoin.networks.bitcoin,
+    test: bitcoin.networks.testnet,
+    regtest: bitcoin.networks.regtest,
+    signet: bitcoin.networks.testnet
+};
 var chain = 'test';
+var network = exports.networks[chain];
 function btc() {
     var args = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -208,8 +215,28 @@ function getTXOut(txid, vout, include_mempool) {
     });
 }
 exports.getTXOut = getTXOut;
+// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | undefined> { /* TODO */ }
+function fundAddress(address, amount) {
+    return __awaiter(this, void 0, void 0, function () {
+        var txid, vout, _a, _b;
+        return __generator(this, function (_c) {
+            switch (_c.label) {
+                case 0: return [4 /*yield*/, btc('sendtoaddress', address, toBTC(amount))];
+                case 1:
+                    txid = _c.sent();
+                    _b = (_a = JSON).parse;
+                    return [4 /*yield*/, btc('gettransaction', txid)];
+                case 2:
+                    vout = _b.apply(_a, [_c.sent()]).details.find(function (x) { return x.address == address; }).vout;
+                    return [2 /*return*/, { txid: txid, vout: vout }];
+            }
+        });
+    });
+}
+exports.fundAddress = fundAddress;
 function setChain(c) {
     chain = c;
+    network = exports.networks[chain];
 }
 exports.setChain = setChain;
 // Utils

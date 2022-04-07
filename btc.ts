@@ -2,9 +2,12 @@ import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
 import { createInterface } from 'readline';
 
-export interface UTXO {
+export interface OutputPoint {
 	txid: string,
-	vout: number,
+	vout: number
+}
+
+export interface UTXO extends OutputPoint {
 	address: string,
 	scriptPubKey: string,
 	amount: number,
@@ -112,7 +115,15 @@ export interface TXOut {
 
 export type Chain = 'main' | 'test' | 'regtest' | 'signet';
 
+export const networks: { [name in Chain]: bitcoin.networks.Network } = {
+	main: bitcoin.networks.bitcoin,
+	test: bitcoin.networks.testnet,
+	regtest: bitcoin.networks.regtest,
+	signet: bitcoin.networks.testnet
+}
+
 var chain: Chain = 'test';
+var network = networks[chain];
 
 export async function btc(...args: (string | Buffer | number | {})[]): Promise<string> {
 	return new Promise((r, e) => {
@@ -205,8 +216,20 @@ export async function getTXOut(txid: string | Buffer, vout: number, include_memp
 	}
 }
 
+// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | undefined> { /* TODO */ }
+
+export async function fundAddress(address: string, amount: number): Promise<OutputPoint> {
+	// return fundScript(bitcoin.address.toOutputScript(address, network), amount);
+
+	const txid = await btc('sendtoaddress', address, toBTC(amount));
+	const vout = JSON.parse(await btc('gettransaction', txid)).details.find(x => x.address == address).vout;
+
+	return { txid, vout };
+}
+
 export function setChain(c: Chain): void {
 	chain = c;
+	network = networks[chain];
 }
 
 // Utils
