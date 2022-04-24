@@ -1,6 +1,23 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
 import { createInterface } from 'readline';
+import * as curve from 'tiny-secp256k1';
+import { ECPairFactory, ECPairInterface } from 'ecpair'
+import { Network } from './node_modules/ecpair/src/networks'
+
+const ZERO = Buffer.alloc(32);
+const ONE = Buffer.from(ZERO.map((_, i) => i == 31 ? 1 : 0));
+const TWO = Buffer.from(ZERO.map((_, i) => i == 31 ? 2 : 0));
+const N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
+
+// not exported by ECPair
+interface ECPairOptions {
+    compressed?: boolean;
+    network?: Network;
+    rng?(arg0: number): Buffer;
+}
+
+const ECPair = ECPairFactory(curve);
 
 export interface OutputPoint {
 	txid: string,
@@ -227,6 +244,33 @@ export async function fundAddress(address: string, amount: number): Promise<Outp
 	return { txid, vout };
 }
 
+export const OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
+
+export function randomInternalKey(options?: ECPairOptions): ECPairInterface {
+	const keypair = ECPair.makeRandom(options);
+	if (keypair.publicKey[0] == 3) {
+		return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, keypair.privateKey), ONE)), options);
+	}
+	return keypair;
+}
+
+export function tapLeaf(script: Buffer): Buffer {
+	return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([ Buffer.from([ 0xc0, script.length ]), script ]));
+}
+
+export function tapBranch(branch1: Buffer, branch2: Buffer): Buffer {
+	return bitcoin.crypto.taggedHash('TapBranch', Buffer.concat(branch1 < branch2 ? [ branch1, branch2 ] : [ branch2, branch1 ]));
+}
+
+export function tapTweak(pubkey: Buffer, branch: Buffer): Buffer {
+	return bitcoin.crypto.taggedHash('TapTweak', Buffer.concat([ pubkey.slice(-32), branch ]));
+}
+
+export function createTaprootOutput(publicKey: Buffer, tweak: Buffer): { parity: 0 | 1, key: Buffer } {
+	const tweaked = curve.pointAddScalar(publicKey, tweak);
+	return { parity: (tweaked[0] & 1) as any, key: Buffer.from(tweaked).slice(-32) };
+}
+
 export function setChain(c: Chain): void {
 	chain = c;
 	network = networks[chain];
@@ -303,11 +347,15 @@ export function bech32toScriptPubKey(a: string): Buffer {
 	]);
 }
 
+export function cloneBuf(buf: Buffer): Buffer {
+	return Uint8Array.prototype.slice.call(buf);
+}
+
 export function txidToString(txid: string | Buffer): string {
 	if (typeof txid === 'string') {
 		return txid;
 	}
-	return Uint8Array.prototype.slice.call(txid).reverse().toString('hex');
+	return cloneBuf(txid).reverse().toString('hex');
 }
 
 export function toSat(BTC: number): number {

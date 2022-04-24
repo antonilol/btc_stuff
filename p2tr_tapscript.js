@@ -41,41 +41,24 @@ var bitcoin = require("bitcoinjs-lib");
 var btc_1 = require("./btc");
 var ecpair_1 = require("ecpair");
 var ECPair = (0, ecpair_1.ECPairFactory)(curve);
-var network = bitcoin.networks.regtest;
-(0, btc_1.setChain)('regtest');
+var network = bitcoin.networks.testnet;
 var hashtype = bitcoin.Transaction.SIGHASH_DEFAULT;
-var ecpair1 = ECPair.makeRandom({ network: network });
-while (ecpair1.publicKey[0] & 1) {
-    ecpair1 = ECPair.makeRandom({ network: network });
-}
+var internalKey = (0, btc_1.randomInternalKey)({ network: network });
 var ecpair2 = ECPair.makeRandom({ network: network });
-function tapLeaf(script) {
-    return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0, script.length]), script]));
-}
-function tapBranch(branch1, branch2) {
-    return bitcoin.crypto.taggedHash('TapBranch', Buffer.concat(branch1 < branch2 ? [branch1, branch2] : [branch2, branch1]));
-}
-function tapTweak(pubkey, branch) {
-    return bitcoin.crypto.taggedHash('TapTweak', Buffer.concat([pubkey.slice(-32), branch]));
-}
-function createOutput(publicKey, tweak) {
-    var tweaked = curve.pointAddScalar(publicKey, tweak);
-    return { parity: tweaked[0] & 1, key: Buffer.from(tweaked).slice(-32) };
-}
 // build taptree
 var leaf1script = bitcoin.script.compile([
     ecpair2.publicKey.slice(1, 33),
     bitcoin.opcodes.OP_CHECKSIG,
     ecpair2.publicKey.slice(1, 33),
-    0xba,
+    btc_1.OP_CHECKSIGADD,
     bitcoin.opcodes.OP_2,
     bitcoin.opcodes.OP_EQUAL
 ]);
-var leaf1 = tapLeaf(leaf1script);
+var leaf1 = (0, btc_1.tapLeaf)(leaf1script);
 var leaf2 = Buffer.alloc(32); // all zeros
-var branch = tapBranch(leaf1, leaf2);
-var tweak = tapTweak(ecpair1.publicKey, branch);
-var tr = createOutput(ecpair1.publicKey, tweak);
+var branch = (0, btc_1.tapBranch)(leaf1, leaf2);
+var tweak = (0, btc_1.tapTweak)(internalKey.publicKey, branch);
+var tr = (0, btc_1.createTaprootOutput)(internalKey.publicKey, tweak);
 var fee_sat = 150;
 var input_sat = 1000;
 var address = bitcoin.address.toBech32(tr.key, 1, network.bech32);
@@ -104,7 +87,7 @@ console.log(address);
                 hashtype, // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
                 leaf1);
                 signature = Buffer.from(curve.signSchnorr(sighash, ecpair2.privateKey));
-                pub = ecpair1.publicKey;
+                pub = internalKey.publicKey;
                 pub.writeUint8(0xc0 | tr.parity);
                 ctrl = Buffer.concat([pub, leaf2]);
                 tx.setWitness(0, [
