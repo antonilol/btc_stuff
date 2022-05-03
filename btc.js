@@ -404,7 +404,7 @@ exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function 
                     }
                 }
             }
-            console[methodName].apply(console, __spreadArray(__spreadArray([], args, false), ['\n', "  at ".concat(initiator)], false));
+            console[methodName].apply(console, __spreadArray(__spreadArray([], args, false), ['\n', "\tat ".concat(initiator)], false));
         }
     ];
 }));

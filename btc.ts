@@ -12,9 +12,9 @@ const N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
 
 // not exported by ECPair
 interface ECPairOptions {
-    compressed?: boolean;
-    network?: Network;
-    rng?(arg0: number): Buffer;
+	compressed?: boolean;
+	network?: Network;
+	rng?(arg0: number): Buffer;
 }
 
 const ECPair = ECPairFactory(curve);
@@ -29,6 +29,9 @@ export interface UTXO extends OutputPoint {
 	scriptPubKey: string,
 	amount: number,
 	confirmations: number,
+	ancestorcount?: number,
+	ancestorsize?: number,
+	ancestorfees?: number,
 	redeemScript?: string,
 	witnessScript?: string,
 	spendable: boolean,
@@ -57,26 +60,27 @@ export interface BlockTemplateTX {
 
 export interface BlockTemplate {
 	capabilities: string[],
-  version: number,
-  rules: string[],
-  vbavailable: { [rulename: string]: number },
-  vbrequired: number,
-  previousblockhash: string,
+	version: number,
+	rules: string[],
+	vbavailable: { [rulename: string]: number },
+	vbrequired: number,
+	previousblockhash: string,
 	transactions: BlockTemplateTX[],
 	coinbaseaux: { [key: string]: number },
-  coinbasevalue: number,
-  longpollid: string,
-  target: string,
-  mintime: number,
-  mutable: string[],
-  noncerange: string,
-  sigoplimit: number,
-  sizelimit: number,
-  weightlimit: number,
-  curtime: number,
-  bits: string,
-  height: number,
-  default_witness_commitment: string
+	coinbasevalue: number,
+	longpollid: string,
+	target: string,
+	mintime: number,
+	mutable: string[],
+	noncerange: string,
+	sigoplimit: number,
+	sizelimit: number,
+	weightlimit: number,
+	curtime: number,
+	bits: string,
+	height: number,
+	signet_challenge?: string
+	default_witness_commitment?: string
 }
 
 export type ScriptType =
@@ -86,17 +90,17 @@ export type ScriptType =
 
 export interface ScriptPubKey {
 	asm: string,
+	desc: string,
 	hex: string,
-	reqSigs?: number,
 	type: ScriptType,
-	address?: string,
-	addresses?: string[]
+	address?: string
 }
 
 export interface Vin {
-	txid: string,
-	vout: number,
-	scriptSig: {
+	coinbase?: string,
+	txid?: string,
+	vout?: number,
+	scriptSig?: {
 		asm: string,
 		hex: string
 	},
@@ -382,30 +386,30 @@ export function input(q: string): Promise<string> {
 // from https://stackoverflow.com/a/47296370/13800918, edited
 export const consoleTrace = Object.fromEntries(
 	[ 'log', 'warn', 'error' ].map(methodName => {
-	  return [
+		return [
 			methodName,
 			(...args: any[]) => {
-		    let initiator = 'unknown place';
-		    try {
-		      throw new Error();
-		    } catch (e) {
-		      if (typeof e.stack === 'string') {
-		        let isFirst = true;
-		        for (const line of e.stack.split('\n')) {
-		          const matches = line.match(/^\s+at\s+(.*)/);
-		          if (matches) {
-		            if (!isFirst) { // first line - current function
-		                            // second line - caller (what we are looking for)
-		              initiator = matches[1];
-		              break;
-		            }
-		            isFirst = false;
-		          }
-		        }
-		      }
-		    }
-		    console[methodName](...args, '\n', `  at ${initiator}`);
-		  }
+				let initiator = 'unknown place';
+				try {
+					throw new Error();
+				} catch (e) {
+					if (typeof e.stack === 'string') {
+						let isFirst = true;
+						for (const line of e.stack.split('\n')) {
+							const matches = line.match(/^\s+at\s+(.*)/);
+							if (matches) {
+								if (!isFirst) { // first line - current function
+																// second line - caller (what we are looking for)
+									initiator = matches[1];
+									break;
+								}
+								isFirst = false;
+							}
+						}
+					}
+				}
+				console[methodName](...args, '\n', `	at ${initiator}`);
+			}
 		]
 	})
 )
