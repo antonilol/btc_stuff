@@ -45,7 +45,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.randomInternalKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.networks = void 0;
+exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.randomInternalKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var readline_1 = require("readline");
@@ -63,7 +63,7 @@ exports.networks = {
     signet: bitcoin.networks.testnet
 };
 var chain = 'test';
-var network = exports.networks[chain];
+exports.network = exports.networks[chain];
 function btc() {
     var args = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -269,7 +269,7 @@ function createTaprootOutput(publicKey, tweak) {
 exports.createTaprootOutput = createTaprootOutput;
 function setChain(c) {
     chain = c;
-    network = exports.networks[chain];
+    exports.network = exports.networks[chain];
 }
 exports.setChain = setChain;
 // Utils

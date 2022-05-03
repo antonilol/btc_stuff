@@ -53,9 +53,37 @@ var assert_1 = require("assert");
 var crypto_1 = require("crypto");
 var fs_1 = require("fs");
 var path_1 = require("path");
+var curve = require("tiny-secp256k1");
+var ecpair_1 = require("ecpair");
+var ECPair = (0, ecpair_1.ECPairFactory)(curve);
+var minerd = "".concat((0, path_1.dirname)(process.argv[1]), "/cpuminer/minerd");
+// set to false to remove all segwit txs and skip witness commitment
 var segwit = true;
+// set to true to sign blocks according to BIP325
+var signet = false;
+if (signet) {
+    (0, btc_1.setChain)('signet');
+}
 // i say DONT CHEAT it is only here for me :)
 var cheat = false;
+var args = process.argv.slice(2);
+var blocks = -1;
+if (args.length > 0) {
+    blocks = parseInt(args[0]);
+    if (blocks === 0) {
+        process.exit(0);
+    }
+    if (!blocks || blocks < -1) {
+        console.log('Provide a positive integer or -1 for block limit');
+        process.exit(1);
+    }
+}
+if (args.length > 1) {
+    templateFile = args[1];
+    if (templateFile) {
+        console.log("Using block template from ".concat(templateFile));
+    }
+}
 function encodeVarUIntLE(n) {
     (0, assert_1.strict)(n >= 0 && n < Math.pow(2, 32));
     var l = 1;
@@ -84,32 +112,44 @@ function encodeVarUIntLE(n) {
 var templateFile;
 // BIP141
 var wCommitHeader = Buffer.from('aa21a9ed', 'hex');
-function createCoinbase(address, value, height, txs, message) {
+// BIP325
+var signetHeader = Buffer.from('ecc7daa2', 'hex');
+function createCoinbase(address, value, height, txs, message, extraNonce, signetBlockSig) {
     var tx = new bitcoin.Transaction();
     // in
     tx.addInput(Buffer.alloc(32), 0xffffffff);
     tx.setInputScript(0, Buffer.concat([
         bitcoin.script.compile([bitcoin.script.number.encode(height)]),
-        (0, crypto_1.randomBytes)(4),
+        extraNonce,
         Buffer.from(message)
     ]));
     // block reward + fees
     tx.addOutput((0, btc_1.bech32toScriptPubKey)(address), value);
+    var commits = [];
     if (segwit) {
-        // OP_RETURN with witness commitment
+        // witness commitment
         var wtxids = txs.map(function (x) { return x.hash; });
         wtxids.splice(0, 0, Buffer.alloc(32));
-        tx.addOutput(bitcoin.script.compile([
-            bitcoin.opcodes.OP_RETURN,
-            Buffer.concat([
-                wCommitHeader,
-                bitcoin.crypto.hash256(Buffer.concat([
-                    (0, merkle_tree_1.merkleRoot)(wtxids),
-                    Buffer.alloc(32)
-                ]))
-            ])
-        ]), 0);
+        commits.push(Buffer.concat([
+            wCommitHeader,
+            bitcoin.crypto.hash256(Buffer.concat([
+                (0, merkle_tree_1.merkleRoot)(wtxids),
+                Buffer.alloc(32)
+            ]))
+        ]));
         tx.setWitness(0, [Buffer.alloc(32)]);
+    }
+    if (signet) {
+        // signet block signature
+        commits.push(Buffer.concat([
+            signetHeader,
+            signetBlockSig ? signetBlockSig : Buffer.alloc(0)
+        ]));
+    }
+    if (commits.length) {
+        tx.addOutput(bitcoin.script.compile(__spreadArray([
+            bitcoin.opcodes.OP_RETURN
+        ], commits, true)), 0);
     }
     // serialize
     var coinbase = tx.toBuffer();
@@ -118,14 +158,19 @@ function createCoinbase(address, value, height, txs, message) {
 }
 function getWork() {
     return __awaiter(this, void 0, void 0, function () {
-        var t, time, prev, txs, mempool, _i, _a, tx, toRemove, removed, txcount, message, address, coinbase, txlen, txoffset, block, o, mRoot;
+        var t, req, time, prev, txs, mempool, _i, _a, tx, toRemove, removed, txcount, message, address, extraNonce, signetBlockSig, _loop_1, txlen, o, state_1;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     if (!templateFile) return [3 /*break*/, 1];
                     t = JSON.parse((0, fs_1.readFileSync)(templateFile).toString());
                     return [3 /*break*/, 3];
-                case 1: return [4 /*yield*/, (0, btc_1.getBlockTemplate)()];
+                case 1:
+                    req = { rules: ['segwit'] };
+                    if (signet) {
+                        req.rules.push('signet');
+                    }
+                    return [4 /*yield*/, (0, btc_1.getBlockTemplate)(req)];
                 case 2:
                     t = _b.sent();
                     _b.label = 3;
@@ -161,45 +206,74 @@ function getWork() {
                             removed += (0, btc_1.removeTransaction)(t, toRemove.txid).length;
                         }
                         console.log("SegWit is disabled");
-                        console.log("Excluded ".concat(removed, " SegWit transaction from the block"));
+                        console.log("Excluded ".concat(removed, " SegWit transactions from the block"));
                     }
                     txcount = encodeVarUIntLE(txs.length + 1);
-                    message = 'mined with miner.ts from github.com/antonilol/btc_stuff';
+                    message = ' github.com/antonilol/btc_stuff >> New signet miner! << ';
                     address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
                     if (!address) {
                         btc_1.consoleTrace.error('No payout address specified!');
                         process.exit(1);
                     }
-                    coinbase = createCoinbase(address, t.coinbasevalue, t.height, txs, message);
-                    txlen = coinbase.tx.length;
-                    txs.forEach(function (tx) {
-                        txlen += tx.data.length / 2;
-                    });
-                    txoffset = 80 + txcount.length;
-                    block = Buffer.allocUnsafe(txoffset + txlen);
-                    txcount.copy(block, 80);
-                    coinbase.tx.copy(block, txoffset);
-                    o = txoffset + coinbase.tx.length;
-                    txs.forEach(function (tx) {
-                        var data = Buffer.from(tx.data, 'hex');
-                        data.copy(block, o);
-                        o += data.length;
-                    });
-                    mRoot = (0, merkle_tree_1.merkleRoot)(__spreadArray([coinbase.txid], txs.map(function (x) { return x.txid; }), true));
-                    block.writeUInt32LE(t.version);
-                    Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
-                    mRoot.copy(block, 36);
-                    block.writeUInt32LE(time, 68);
-                    Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex').reverse().copy(block, 72);
-                    return [2 /*return*/, { block: block, mempool: mempool }];
+                    extraNonce = (0, crypto_1.randomBytes)(4);
+                    _loop_1 = function () {
+                        var coinbase, txoffset, block, mRoot, sighash, scriptSig, _c, _d, _e, _f, _g, _h, scriptWitness;
+                        return __generator(this, function (_j) {
+                            switch (_j.label) {
+                                case 0:
+                                    coinbase = createCoinbase(address, t.coinbasevalue, t.height, txs, message, extraNonce, signetBlockSig);
+                                    txlen = coinbase.tx.length;
+                                    txs.forEach(function (tx) {
+                                        txlen += tx.data.length / 2;
+                                    });
+                                    txoffset = 80 + txcount.length;
+                                    block = Buffer.allocUnsafe(txoffset + txlen);
+                                    txcount.copy(block, 80);
+                                    coinbase.tx.copy(block, txoffset);
+                                    o = txoffset + coinbase.tx.length;
+                                    txs.forEach(function (tx) {
+                                        var data = Buffer.from(tx.data, 'hex');
+                                        data.copy(block, o);
+                                        o += data.length;
+                                    });
+                                    mRoot = (0, merkle_tree_1.merkleRoot)(__spreadArray([coinbase.txid], txs.map(function (x) { return x.txid; }), true));
+                                    block.writeUInt32LE(t.version);
+                                    Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
+                                    mRoot.copy(block, 36);
+                                    block.writeUInt32LE(time, 68);
+                                    Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex').reverse().copy(block, 72);
+                                    if (!signet || signetBlockSig) {
+                                        return [2 /*return*/, { value: { block: block, mempool: mempool } }];
+                                    }
+                                    sighash = signetBlockSighash(block.slice(0, 72), Buffer.from(t.signet_challenge, 'hex')).legacy;
+                                    _d = (_c = bitcoin.script).compile;
+                                    _f = (_e = bitcoin.script.signature).encode;
+                                    _h = (_g = ECPair).fromWIF;
+                                    return [4 /*yield*/, (0, btc_1.btc)('dumpprivkey', 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3')];
+                                case 1:
+                                    scriptSig = _d.apply(_c, [[
+                                            _f.apply(_e, [_h.apply(_g, [_j.sent(), btc_1.network]).sign(sighash),
+                                                bitcoin.Transaction.SIGHASH_ALL])
+                                        ]]);
+                                    scriptWitness = Buffer.alloc(1);
+                                    signetBlockSig = Buffer.concat([encodeVarUIntLE(scriptSig.length), scriptSig, scriptWitness]);
+                                    return [2 /*return*/];
+                            }
+                        });
+                    };
+                    _b.label = 11;
+                case 11:
+                    if (!true) return [3 /*break*/, 13];
+                    return [5 /*yield**/, _loop_1()];
+                case 12:
+                    state_1 = _b.sent();
+                    if (typeof state_1 === "object")
+                        return [2 /*return*/, state_1.value];
+                    return [3 /*break*/, 11];
+                case 13: return [2 /*return*/];
             }
         });
     });
-}
-var minerd = "".concat((0, path_1.dirname)(process.argv[1]), "/cpuminer/minerd");
-templateFile = process.argv[2];
-if (templateFile) {
-    console.log("Using block template from ".concat(templateFile));
 }
 main();
 function main() {
@@ -227,7 +301,7 @@ function main() {
                     p = _a.sent();
                     if (p) {
                         console.log('\n' + p);
-                        return [2 /*return*/];
+                        process.exit(1);
                     }
                     console.log(' ok');
                     if (templateFile) {
@@ -238,6 +312,10 @@ function main() {
                         (0, fs_1.copyFileSync)("mempool/".concat(m), "/tmp/".concat(m));
                         (0, fs_1.unlinkSync)("mempool/".concat(m));
                     });
+                    blocks--;
+                    if (blocks === 0) {
+                        process.exit(0);
+                    }
                     _a.label = 4;
                 case 4: return [3 /*break*/, 0];
                 case 5: return [2 /*return*/];
@@ -274,4 +352,25 @@ function mine(header) {
             }
         });
     });
+}
+function signetBlockSighash(header, challenge) {
+    var toSpend = new bitcoin.Transaction();
+    var toSign = new bitcoin.Transaction();
+    toSpend.version = 0;
+    toSpend.addInput(Buffer.alloc(32), 0xffffffff, 0);
+    toSpend.setInputScript(0, bitcoin.script.compile([
+        bitcoin.opcodes.OP_0,
+        header
+    ]));
+    toSpend.addOutput(challenge, 0);
+    toSign.version = 0;
+    toSign.addInput(Buffer.from(toSpend.getId(), 'hex').reverse(), 0, 0);
+    toSign.addOutput(bitcoin.script.compile([
+        bitcoin.opcodes.OP_RETURN
+    ]), 0);
+    return {
+        legacy: toSign.hashForSignature(0, challenge, bitcoin.Transaction.SIGHASH_ALL),
+        witness_v0: toSign.hashForWitnessV0(0, challenge, 0, bitcoin.Transaction.SIGHASH_ALL),
+        witness_v1: toSign.hashForWitnessV1(0, [challenge], [0], bitcoin.Transaction.SIGHASH_DEFAULT)
+    };
 }

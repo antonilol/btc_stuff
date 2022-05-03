@@ -144,7 +144,7 @@ export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 }
 
 var chain: Chain = 'test';
-var network = networks[chain];
+export var network = networks[chain];
 
 export async function btc(...args: (string | Buffer | number | {})[]): Promise<string> {
 	return new Promise((r, e) => {
