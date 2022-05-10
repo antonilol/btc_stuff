@@ -20,12 +20,22 @@ async function main() {
 
 	const ecpair = ECPair.fromWIF(await key, network);
 
-	const witnessScript = bitcoin.script.compile([
-		ecpair.publicKey,
-		bitcoin.opcodes.OP_CHECKSIGVERIFY,
-		bitcoin.script.number.encode(tl),
-		bitcoin.opcodes.OP_CHECKSEQUENCEVERIFY
-	]);
+	var witnessScript;
+	if (tl == 1) {
+		// trick
+		witnessScript = bitcoin.script.compile([
+			ecpair.publicKey,
+			bitcoin.opcodes.OP_CHECKSIG,
+			bitcoin.opcodes.OP_CHECKSEQUENCEVERIFY
+		]);
+	} else {
+		witnessScript = bitcoin.script.compile([
+			ecpair.publicKey,
+			bitcoin.opcodes.OP_CHECKSIGVERIFY,
+			bitcoin.script.number.encode(tl),
+			bitcoin.opcodes.OP_CHECKSEQUENCEVERIFY
+		]);
+	}
 
 	console.log(
 		'send 1000 sat to ' +
