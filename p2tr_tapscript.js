@@ -40,10 +40,11 @@ var curve = require("tiny-secp256k1");
 var bitcoin = require("bitcoinjs-lib");
 var btc_1 = require("./btc");
 var ecpair_1 = require("ecpair");
+var crypto_1 = require("crypto");
 var ECPair = (0, ecpair_1.ECPairFactory)(curve);
 var network = bitcoin.networks.testnet;
 var hashtype = bitcoin.Transaction.SIGHASH_DEFAULT;
-var internalKey = (0, btc_1.randomInternalKey)({ network: network });
+var internalKey = ECPair.fromPrivateKey((0, btc_1.schnorrPrivKey)((0, crypto_1.randomBytes)(32)), { network: network });
 var ecpair2 = ECPair.makeRandom({ network: network });
 // build taptree
 var leaf1script = bitcoin.script.compile([

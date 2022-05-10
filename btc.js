@@ -45,17 +45,15 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.randomInternalKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
+exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.schnorrPrivKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var readline_1 = require("readline");
 var curve = require("tiny-secp256k1");
-var ecpair_1 = require("ecpair");
 var ZERO = Buffer.alloc(32);
 var ONE = Buffer.from(ZERO.map(function (_, i) { return i == 31 ? 1 : 0; }));
 var TWO = Buffer.from(ZERO.map(function (_, i) { return i == 31 ? 2 : 0; }));
 var N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
-var ECPair = (0, ecpair_1.ECPairFactory)(curve);
 exports.networks = {
     main: bitcoin.networks.bitcoin,
     test: bitcoin.networks.testnet,
@@ -242,14 +240,13 @@ function fundAddress(address, amount) {
 }
 exports.fundAddress = fundAddress;
 exports.OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
-function randomInternalKey(options) {
-    var keypair = ECPair.makeRandom(options);
-    if (keypair.publicKey[0] == 3) {
-        return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, keypair.privateKey), ONE)), options);
+function schnorrPrivKey(d) {
+    if (curve.pointFromScalar(d, true)[0] == 3) {
+        return Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, d), ONE));
     }
-    return keypair;
+    return Buffer.from(d);
 }
-exports.randomInternalKey = randomInternalKey;
+exports.schnorrPrivKey = schnorrPrivKey;
 function tapLeaf(script) {
     return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0, script.length]), script]));
 }
@@ -259,7 +256,7 @@ function tapBranch(branch1, branch2) {
 }
 exports.tapBranch = tapBranch;
 function tapTweak(pubkey, branch) {
-    return bitcoin.crypto.taggedHash('TapTweak', Buffer.concat([pubkey.slice(-32), branch]));
+    return bitcoin.crypto.taggedHash('TapTweak', branch ? Buffer.concat([pubkey.slice(-32), branch]) : pubkey.slice(-32));
 }
 exports.tapTweak = tapTweak;
 function createTaprootOutput(publicKey, tweak) {

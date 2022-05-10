@@ -2,22 +2,11 @@ import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
 import { createInterface } from 'readline';
 import * as curve from 'tiny-secp256k1';
-import { ECPairFactory, ECPairInterface } from 'ecpair'
-import { Network } from './node_modules/ecpair/src/networks'
 
 const ZERO = Buffer.alloc(32);
 const ONE = Buffer.from(ZERO.map((_, i) => i == 31 ? 1 : 0));
 const TWO = Buffer.from(ZERO.map((_, i) => i == 31 ? 2 : 0));
 const N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
-
-// not exported by ECPair
-interface ECPairOptions {
-	compressed?: boolean;
-	network?: Network;
-	rng?(arg0: number): Buffer;
-}
-
-const ECPair = ECPairFactory(curve);
 
 export interface OutputPoint {
 	txid: string,
@@ -250,12 +239,11 @@ export async function fundAddress(address: string, amount: number): Promise<Outp
 
 export const OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
 
-export function randomInternalKey(options?: ECPairOptions): ECPairInterface {
-	const keypair = ECPair.makeRandom(options);
-	if (keypair.publicKey[0] == 3) {
-		return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, keypair.privateKey), ONE)), options);
+export function schnorrPrivKey(d: Uint8Array): Buffer {
+	if (curve.pointFromScalar(d, true)[0] == 3) {
+		return Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, d), ONE));
 	}
-	return keypair;
+	return Buffer.from(d);
 }
 
 export function tapLeaf(script: Buffer): Buffer {
@@ -266,8 +254,8 @@ export function tapBranch(branch1: Buffer, branch2: Buffer): Buffer {
 	return bitcoin.crypto.taggedHash('TapBranch', Buffer.concat(branch1 < branch2 ? [ branch1, branch2 ] : [ branch2, branch1 ]));
 }
 
-export function tapTweak(pubkey: Buffer, branch: Buffer): Buffer {
-	return bitcoin.crypto.taggedHash('TapTweak', Buffer.concat([ pubkey.slice(-32), branch ]));
+export function tapTweak(pubkey: Buffer, branch?: Buffer): Buffer {
+	return bitcoin.crypto.taggedHash('TapTweak', branch ? Buffer.concat([ pubkey.slice(-32), branch ]) : pubkey.slice(-32));
 }
 
 export function createTaprootOutput(publicKey: Buffer, tweak: Buffer): { parity: 0 | 1, key: Buffer } {

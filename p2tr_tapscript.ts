@@ -1,14 +1,15 @@
 import * as curve from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
-import { send, bech32toScriptPubKey, fundAddress, getnewaddress, decodeRawTransaction, randomInternalKey, tapLeaf, tapBranch, tapTweak, createTaprootOutput, OP_CHECKSIGADD } from './btc';
+import { send, bech32toScriptPubKey, fundAddress, getnewaddress, decodeRawTransaction, schnorrPrivKey, tapLeaf, tapBranch, tapTweak, createTaprootOutput, OP_CHECKSIGADD } from './btc';
 import { ECPairFactory } from 'ecpair'
+import { randomBytes } from 'crypto'
 
 const ECPair = ECPairFactory(curve);
 
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_DEFAULT;
 
-const internalKey = randomInternalKey({ network });
+const internalKey = ECPair.fromPrivateKey(schnorrPrivKey(randomBytes(32)), { network });
 
 const ecpair2 = ECPair.makeRandom({ network });
 
