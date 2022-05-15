@@ -1,7 +1,8 @@
 import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
-import { createInterface } from 'readline';
 import * as curve from 'tiny-secp256k1';
+import { createInterface } from 'readline';
+import { Writable } from 'stream';
 
 const ZERO = Buffer.alloc(32);
 const ONE = Buffer.from(ZERO.map((_, i) => i == 31 ? 1 : 0));
@@ -360,15 +361,48 @@ export function toBTC(sat: number): number {
 	return parseFloat((sat * 1e-8).toFixed(8));
 }
 
-export function input(q: string): Promise<string> {
+export enum InputVisibility {
+	Visible,
+	Asterisks,
+	Invisible
+}
+
+export function input(q: string, visibility: InputVisibility = InputVisibility.Visible): Promise<string> {
+	var active = false;
+
 	const rl = createInterface({
 		input: process.stdin,
-		output: process.stdout
+		output: new Writable({
+			write: (chunk, encoding, cb) => {
+				const c = Buffer.from(chunk, encoding);
+
+				if (active && visibility != InputVisibility.Visible) {
+					if (c.toString() == '\r\n' || c.toString() == '\n') {
+						console.log();
+						return cb();
+					}
+				}
+
+				if (!active || visibility == InputVisibility.Visible) {
+					process.stdout.write(c);
+				} else if (visibility == InputVisibility.Asterisks) {
+					process.stdout.write('*'.repeat(c.length));
+				}
+
+				cb();
+			}
+		}),
+		terminal: true
 	});
-	return new Promise(r => rl.question(q, a => {
+
+	const ret = new Promise<string>(r => rl.question(q, a => {
 		r(a);
 		rl.close();
 	}));
+
+	active = true;
+
+	return ret;
 }
 
 // from https://stackoverflow.com/a/47296370/13800918, edited

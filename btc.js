@@ -45,11 +45,12 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.schnorrPrivKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
+exports.consoleTrace = exports.input = exports.InputVisibility = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.schnorrPrivKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
-var readline_1 = require("readline");
 var curve = require("tiny-secp256k1");
+var readline_1 = require("readline");
+var stream_1 = require("stream");
 var ZERO = Buffer.alloc(32);
 var ONE = Buffer.from(ZERO.map(function (_, i) { return i == 31 ? 1 : 0; }));
 var TWO = Buffer.from(ZERO.map(function (_, i) { return i == 31 ? 2 : 0; }));
@@ -360,15 +361,43 @@ function toBTC(sat) {
     return parseFloat((sat * 1e-8).toFixed(8));
 }
 exports.toBTC = toBTC;
-function input(q) {
+var InputVisibility;
+(function (InputVisibility) {
+    InputVisibility[InputVisibility["Visible"] = 0] = "Visible";
+    InputVisibility[InputVisibility["Asterisks"] = 1] = "Asterisks";
+    InputVisibility[InputVisibility["Invisible"] = 2] = "Invisible";
+})(InputVisibility = exports.InputVisibility || (exports.InputVisibility = {}));
+function input(q, visibility) {
+    if (visibility === void 0) { visibility = InputVisibility.Visible; }
+    var active = false;
     var rl = (0, readline_1.createInterface)({
         input: process.stdin,
-        output: process.stdout
+        output: new stream_1.Writable({
+            write: function (chunk, encoding, cb) {
+                var c = Buffer.from(chunk, encoding);
+                if (active && visibility != InputVisibility.Visible) {
+                    if (c.toString() == '\r\n' || c.toString() == '\n') {
+                        console.log();
+                        return cb();
+                    }
+                }
+                if (!active || visibility == InputVisibility.Visible) {
+                    process.stdout.write(c);
+                }
+                else if (visibility == InputVisibility.Asterisks) {
+                    process.stdout.write('*'.repeat(c.length));
+                }
+                cb();
+            }
+        }),
+        terminal: true
     });
-    return new Promise(function (r) { return rl.question(q, function (a) {
+    var ret = new Promise(function (r) { return rl.question(q, function (a) {
         r(a);
         rl.close();
     }); });
+    active = true;
+    return ret;
 }
 exports.input = input;
 // from https://stackoverflow.com/a/47296370/13800918, edited
