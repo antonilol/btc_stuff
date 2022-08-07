@@ -16,6 +16,7 @@ export interface OutputPoint {
 
 export interface UTXO extends OutputPoint {
 	address: string,
+	label?: string,
 	scriptPubKey: string,
 	amount: number,
 	confirmations: number,
@@ -189,8 +190,20 @@ export async function newtx(inputs: {}, outputs: {}, sat: boolean): Promise<stri
 		});
 	}
 	const tx = await btc('createrawtransaction', inputs, outputs);
-	const signed = JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex;
-	return send(signed);
+	return signAndSend(tx);
+}
+
+export async function signAndSend(hex: string): Promise<string> {
+	return send(JSON.parse(await btc('signrawtransactionwithwallet', hex)).hex);
+}
+
+export async function fundTransaction(tx: bitcoin.Transaction): Promise<{ tx: bitcoin.Transaction, fee: number, changepos: number }> {
+	const res = JSON.parse(await btc('fundrawtransaction', tx.toHex()));
+
+	res.tx = bitcoin.Transaction.fromHex(res.hex);
+	delete res.hex;
+
+	return res;
 }
 
 export async function send(hex: string): Promise<string> {
@@ -220,14 +233,14 @@ export async function decodeRawTransaction(txHex: string | Buffer): Promise<RawT
 	return JSON.parse(await btc('decoderawtransaction', txHex));
 }
 
-export async function getTXOut(txid: string | Buffer, vout: number, include_mempool: boolean = true): Promise<TXOut | undefined> {
+export async function getTXOut(txid: string | Buffer, vout: number, include_mempool: boolean = true): Promise<TXOut | void> {
 	const txout = await btc('gettxout', txidToString(txid), vout, include_mempool);
 	if (txout) {
 		return JSON.parse(txout);
 	}
 }
 
-// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | undefined> { /* TODO */ }
+// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
 
 export async function fundAddress(address: string, amount: number): Promise<OutputPoint> {
 	// return fundScript(bitcoin.address.toOutputScript(address, network), amount);
@@ -236,6 +249,21 @@ export async function fundAddress(address: string, amount: number): Promise<Outp
 	const vout = JSON.parse(await btc('gettransaction', txid)).details.find(x => x.address == address).vout;
 
 	return { txid, vout };
+}
+
+export function validNetworks(address: string): { [name in 'bitcoin' | 'testnet' | 'regtest']?: bitcoin.Network } {
+	const output = {};
+
+	for (const net of Object.entries(bitcoin.networks)) {
+		try {
+			bitcoin.address.toOutputScript(address, net[1]);
+			output[net[0]] = net[1];
+		}
+		catch (e) {
+		}
+	}
+
+	return output;
 }
 
 export const OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
@@ -403,6 +431,10 @@ export function input(q: string, visibility: InputVisibility = InputVisibility.V
 	active = true;
 
 	return ret;
+}
+
+export async function sleep(ms: number): Promise<void> {
+	return new Promise(r => setTimeout(r, ms));
 }
 
 // from https://stackoverflow.com/a/47296370/13800918, edited

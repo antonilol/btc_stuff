@@ -45,7 +45,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 exports.__esModule = true;
-exports.consoleTrace = exports.input = exports.InputVisibility = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.schnorrPrivKey = exports.OP_CHECKSIGADD = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
+exports.consoleTrace = exports.sleep = exports.input = exports.InputVisibility = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.schnorrPrivKey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
 var child_process_1 = require("child_process");
 var bitcoin = require("bitcoinjs-lib");
 var curve = require("tiny-secp256k1");
@@ -114,9 +114,9 @@ exports.btc = btc;
 // sign, create and send new transaction
 function newtx(inputs, outputs, sat) {
     return __awaiter(this, void 0, void 0, function () {
-        var tx, signed, _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
+        var tx;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
                 case 0:
                     if (sat) {
                         Object.keys(outputs).forEach(function (k) {
@@ -125,17 +125,46 @@ function newtx(inputs, outputs, sat) {
                     }
                     return [4 /*yield*/, btc('createrawtransaction', inputs, outputs)];
                 case 1:
-                    tx = _c.sent();
-                    _b = (_a = JSON).parse;
-                    return [4 /*yield*/, btc('signrawtransactionwithwallet', tx)];
-                case 2:
-                    signed = _b.apply(_a, [_c.sent()]).hex;
-                    return [2 /*return*/, send(signed)];
+                    tx = _a.sent();
+                    return [2 /*return*/, signAndSend(tx)];
             }
         });
     });
 }
 exports.newtx = newtx;
+function signAndSend(hex) {
+    return __awaiter(this, void 0, void 0, function () {
+        var _a, _b, _c;
+        return __generator(this, function (_d) {
+            switch (_d.label) {
+                case 0:
+                    _a = send;
+                    _c = (_b = JSON).parse;
+                    return [4 /*yield*/, btc('signrawtransactionwithwallet', hex)];
+                case 1: return [2 /*return*/, _a.apply(void 0, [_c.apply(_b, [_d.sent()]).hex])];
+            }
+        });
+    });
+}
+exports.signAndSend = signAndSend;
+function fundTransaction(tx) {
+    return __awaiter(this, void 0, void 0, function () {
+        var res, _a, _b;
+        return __generator(this, function (_c) {
+            switch (_c.label) {
+                case 0:
+                    _b = (_a = JSON).parse;
+                    return [4 /*yield*/, btc('fundrawtransaction', tx.toHex())];
+                case 1:
+                    res = _b.apply(_a, [_c.sent()]);
+                    res.tx = bitcoin.Transaction.fromHex(res.hex);
+                    delete res.hex;
+                    return [2 /*return*/, res];
+            }
+        });
+    });
+}
+exports.fundTransaction = fundTransaction;
 function send(hex) {
     return __awaiter(this, void 0, void 0, function () {
         return __generator(this, function (_a) {
@@ -221,7 +250,7 @@ function getTXOut(txid, vout, include_mempool) {
     });
 }
 exports.getTXOut = getTXOut;
-// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | undefined> { /* TODO */ }
+// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
 function fundAddress(address, amount) {
     return __awaiter(this, void 0, void 0, function () {
         var txid, vout, _a, _b;
@@ -240,6 +269,20 @@ function fundAddress(address, amount) {
     });
 }
 exports.fundAddress = fundAddress;
+function validNetworks(address) {
+    var output = {};
+    for (var _i = 0, _a = Object.entries(bitcoin.networks); _i < _a.length; _i++) {
+        var net = _a[_i];
+        try {
+            bitcoin.address.toOutputScript(address, net[1]);
+            output[net[0]] = net[1];
+        }
+        catch (e) {
+        }
+    }
+    return output;
+}
+exports.validNetworks = validNetworks;
 exports.OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
 function schnorrPrivKey(d) {
     if (curve.pointFromScalar(d, true)[0] == 3) {
@@ -400,6 +443,14 @@ function input(q, visibility) {
     return ret;
 }
 exports.input = input;
+function sleep(ms) {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            return [2 /*return*/, new Promise(function (r) { return setTimeout(r, ms); })];
+        });
+    });
+}
+exports.sleep = sleep;
 // from https://stackoverflow.com/a/47296370/13800918, edited
 exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function (methodName) {
     return [

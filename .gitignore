@@ -2,4 +2,7 @@ cpuminer
 node_modules
 mempool
 
-addr.json
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json

@@ -1,7 +1,7 @@
 {
   "name": "btc_stuff",
   "scripts": {
-    "build": "ls *.ts | sed 's/ts$/js linguist-generated/' > .gitattributes; tsc *.ts"
+    "build": "ls *.ts */*.ts | sed 's/ts$/js linguist-generated/' > .gitattributes; tsc"
   },
   "dependencies": {
     "bip32": "^3.0.1",
