@@ -2,10 +2,11 @@
 
 Bitcoin transaction examples with bitcoinjs-lib
 
-This is a collection of scripts with various aspects of bitcoin in TypeScript and/or JavaScript.
-Note that when making changes in TypeScript files you need to compile it again for it to work.
+This is a collection of scripts with various aspects of bitcoin tech (mostly scripts) in TypeScript and/or JavaScript.
+<br>
+When dealing with TypeScript files, run `npm run build` before running them with `node <file>`, or use `ts-node <file>`.
 
-Use at your own risk, only use on the mainnet if you are 100% certain it works the way you want or funds can be lost!
+**(!) Use at your own risk, only use on the mainnet if you are 100% certain it works the way you want or funds can be lost! (!)**
 
 ### Example usage
 
@@ -23,15 +24,15 @@ npm install
 ```
 
 Choose a script you want to start with.
-I will use [p2sh.js](https://github.com/antonilol/btc_stuff/blob/master/p2sh.js) here.
+I will use [p2sh.js](./p2sh.js) here.
 
 Edit something (optional), for example: change `OP_13` to `OP_12`.
 
 Run it
 
 Most scripts will either output a locking script or an address,
-in this case it is a locking script, and we will be using P2SH
-here, so put this locking script in Bitcoin Core's `decodescript`
+in this case it is a locking script, so put this locking script
+in Bitcoin Core's `decodescript` rpc.
 
 ```bash
 $ bitcoin-cli -testnet decodescript 935c87
@@ -54,15 +55,15 @@ We will be using the address next to `p2sh`: `2N9h3wvypp2oLaaGfHiDVix5GSeTPMGnhQ
 Send some sats to this address, 1000 for example:
 
 ```bash
-$ bitcoin-cli -testnet sendtoaddress 2N9h3wvypp2oLaaGfHiDVix5GSeTPMGnhQv 0.00001
+$ bitcoin-cli -testnet sendtoaddress 2N9h3wvypp2oLaaGfHiDVix5GSeTPMGnhQv 0.00001000
 ae70f2d7625184471c9bbf3dea64febc5b562131f2b7c6ccbf3125d493402ac1
 ```
 
 This will give a TXID, look this up on a block explorer to find out where the desired output is.
 
-You need to look for the _output index_, where the output with this P2SH address is counting from zero.
+You need to look for the _output index_, where the output with this P2SH address is, counting from zero.
 
-If it is the first output, the output index is 0, if it is the second, it is 1 and so on.
+(If it is the first output, the output index is 0, if it is the second, it is 1 and so on.)
 
 Now go back to your editor and put the TXID and the output index in.
 
@@ -90,15 +91,17 @@ Some other values need to be set too, like
 `fee_sat` to how much fee you want to pay and
 put your own receiving address of a wallet over the placeholder `tb1qbech32addresshere`.
 
-Now by running the script it should run flawlessly and print a new TXID to the console.
-This TXID is from the spending transaction and can also be looked up in a block explorer.
+Now by running the script it should create and broadcast your transaction and print its TXID to the console.
+This TXID can also be looked up in a block explorer.
+([mempool.space](https://mempool.space) and [blockstream.info](https://blockstream.info) have a
+`Details` button to show advanced details about scripts.)
 
 If you have any questions, found bugs or have an improvement/addition feel free to submit it
 in either issues, discussions or pull requests.
 
 ### Network
 
-All script by default use `testnet`. To use another network (for example mainnet):
+Almost all scripts by default use `testnet`. To use another network (for example mainnet):
 
 add
 ```js
