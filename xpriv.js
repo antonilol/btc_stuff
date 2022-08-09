@@ -49,10 +49,14 @@ var color = function () {
     for (var _i = 0; _i < arguments.length; _i++) {
         colors[_i] = arguments[_i];
     }
-    return colors.length ? "\u001B[".concat(colors.join(';'), "m") : '';
+    return (colors.length ? "\u001B[".concat(colors.join(';'), "m") : '');
 };
 var checksum = function (key) { return bitcoin.crypto.hash256(key.slice(0, 78)).copy(key, 78, 0, 4); };
-var RESET = 0, BOLD = 1, REVERSED = 7, RED = 31, CYAN = 36;
+var RESET = 0;
+var BOLD = 1;
+var REVERSED = 7;
+var RED = 31;
+var CYAN = 36;
 var versions = [
     { network: 'mainnet', version: Buffer.from('0488b21e', 'hex'), private: false, script: 'p2pkh or p2sh' },
     { network: 'mainnet', version: Buffer.from('0488ade4', 'hex'), private: true, script: 'p2pkh or p2sh' },
@@ -186,9 +190,7 @@ function readKey(s, useOldVersion) {
     if (!useOldVersion) {
         var clone = Buffer.allocUnsafe(82);
         k.copy(clone, 4, 4, 78);
-        versions
-            .find(function (v) { return v.private == type.private && v.network == type.network; })
-            .version.copy(clone);
+        versions.find(function (v) { return v.private == type.private && v.network == type.network; }).version.copy(clone);
         checksum(clone);
         bip32key = bip32.fromBase58(bs58.encode(clone), type.network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet);
     }
@@ -200,7 +202,9 @@ function displayKey() {
         return;
     }
     console.log("\nVersion:              ".concat(ver.toString('hex'), "\nDepth:                ").concat(depth, "\nMaster fingerprint:   ").concat(fingerprint.toString('hex'), "\nChild number:         ").concat(n & 0x7fffffff).concat(n & 0x80000000 ? "'" : '', "\nChain code:           ").concat(chain.toString('hex'), "\nKey:                  ").concat((key[0] ? key : key.slice(1)).toString('hex'), "\n\nNetwork:              ").concat(type.network, "\nKey type:             ").concat(type.private ? 'private' : 'public', "\nElectrum script type: ").concat(type.script, "\n\nAll Electrum defined master key versions:\nNetwork     Key type     Script type     Key"));
-    versions.filter(function (v) { return v.private == type.private; }).forEach(function (v, i) {
+    versions
+        .filter(function (v) { return v.private == type.private; })
+        .forEach(function (v, i) {
         v.version.copy(k);
         checksum(k);
         var colors = [];

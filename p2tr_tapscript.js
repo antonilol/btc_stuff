@@ -78,12 +78,7 @@ console.log(address);
             case 1:
                 _b.apply(_a, [_c.apply(void 0, [_d.sent()]), input_sat - fee_sat]);
                 sighash = tx.hashForWitnessV1(0, // which input
-                [
-                    bitcoin.script.compile([
-                        bitcoin.opcodes.OP_1,
-                        tr.key
-                    ])
-                ], // All previous outputs of all inputs
+                [bitcoin.script.compile([bitcoin.opcodes.OP_1, tr.key])], // All previous outputs of all inputs
                 [input_sat], // All previous values of all inputs
                 hashtype, // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
                 leaf1);
@@ -91,12 +86,7 @@ console.log(address);
                 pub = internalKey.publicKey;
                 pub.writeUint8(0xc0 | tr.parity);
                 ctrl = Buffer.concat([pub, leaf2]);
-                tx.setWitness(0, [
-                    signature,
-                    signature,
-                    leaf1script,
-                    ctrl
-                ]);
+                tx.setWitness(0, [signature, signature, leaf1script, ctrl]);
                 return [4 /*yield*/, (0, btc_1.decodeRawTransaction)(tx.toHex())];
             case 2:
                 decoded = _d.sent();

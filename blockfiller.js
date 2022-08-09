@@ -25,7 +25,7 @@ async function main() {
 
 	const s4 = Array(10).fill().map(x => []);
 
-	[...s].sort((a, b) => {
+	[ ...s ].sort((a, b) => {
 		if (a.address < b.address) {
 			return -1;
 		}

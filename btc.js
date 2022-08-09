@@ -52,8 +52,8 @@ var curve = require("tiny-secp256k1");
 var readline_1 = require("readline");
 var stream_1 = require("stream");
 var ZERO = Buffer.alloc(32);
-var ONE = Buffer.from(ZERO.map(function (_, i) { return i == 31 ? 1 : 0; }));
-var TWO = Buffer.from(ZERO.map(function (_, i) { return i == 31 ? 2 : 0; }));
+var ONE = Buffer.from(ZERO.map(function (_, i) { return (i == 31 ? 1 : 0); }));
+var TWO = Buffer.from(ZERO.map(function (_, i) { return (i == 31 ? 2 : 0); }));
 var N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
 exports.networks = {
     main: bitcoin.networks.bitcoin,
@@ -72,24 +72,27 @@ function btc() {
         return __generator(this, function (_a) {
             return [2 /*return*/, new Promise(function (r, e) {
                     var cmdargs = ["-chain=".concat(chain), '-stdin'];
-                    while (args.length &&
-                        typeof args[0] === 'string' &&
-                        args[0].startsWith('-')) {
+                    while (args.length && typeof args[0] === 'string' && args[0].startsWith('-')) {
                         cmdargs.push(args.shift());
                     }
                     var p = (0, child_process_1.spawn)('bitcoin-cli', cmdargs);
                     var out = '';
                     p.stdout.setEncoding('utf8');
-                    p.stdout.on('data', function (data) { return out += data.toString(); });
+                    p.stdout.on('data', function (data) {
+                        out += data.toString();
+                    });
                     p.stderr.setEncoding('utf8');
-                    p.stderr.on('data', function (data) { return out += data.toString(); });
+                    p.stderr.on('data', function (data) {
+                        out += data.toString();
+                    });
                     p.on('close', function (code) {
                         while (out.endsWith('\n')) {
                             out = out.slice(0, -1);
                         }
                         (code ? e : r)(out);
                     });
-                    p.stdin.write(args.map(function (x) {
+                    p.stdin.write(args
+                        .map(function (x) {
                         var arg;
                         if (Buffer.isBuffer(x)) {
                             arg = x.toString('hex');
@@ -104,7 +107,8 @@ function btc() {
                             arg = JSON.stringify(x);
                         }
                         return arg.replace(/\n/g, '');
-                    }).join('\n'));
+                    })
+                        .join('\n'));
                     p.stdin.end();
                 })];
         });
@@ -120,7 +124,9 @@ function newtx(inputs, outputs, sat) {
                 case 0:
                     if (sat) {
                         Object.keys(outputs).forEach(function (k) {
-                            outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+                            if (k !== 'data') {
+                                outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+                            }
                         });
                     }
                     return [4 /*yield*/, btc('createrawtransaction', inputs, outputs)];
@@ -277,8 +283,7 @@ function validNetworks(address) {
             bitcoin.address.toOutputScript(address, net[1]);
             output[net[0]] = net[1];
         }
-        catch (e) {
-        }
+        catch (e) { }
     }
     return output;
 }
@@ -377,10 +382,7 @@ function updateNumberDepends(template) {
 }
 function bech32toScriptPubKey(a) {
     var z = bitcoin.address.fromBech32(a);
-    return bitcoin.script.compile([
-        bitcoin.script.number.encode(z.version),
-        bitcoin.address.fromBech32(a).data
-    ]);
+    return bitcoin.script.compile([bitcoin.script.number.encode(z.version), bitcoin.address.fromBech32(a).data]);
 }
 exports.bech32toScriptPubKey = bech32toScriptPubKey;
 function cloneBuf(buf) {
@@ -435,10 +437,12 @@ function input(q, visibility) {
         }),
         terminal: true
     });
-    var ret = new Promise(function (r) { return rl.question(q, function (a) {
-        r(a);
-        rl.close();
-    }); });
+    var ret = new Promise(function (r) {
+        return rl.question(q, function (a) {
+            r(a);
+            rl.close();
+        });
+    });
     active = true;
     return ret;
 }
@@ -455,6 +459,7 @@ exports.sleep = sleep;
 exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function (methodName) {
     return [
         methodName,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         function () {
             var args = [];
             for (var _i = 0; _i < arguments.length; _i++) {
@@ -471,8 +476,7 @@ exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function 
                         var line = _b[_a];
                         var matches = line.match(/^\s+at\s+(.*)/);
                         if (matches) {
-                            if (!isFirst) { // first line - current function
-                                // second line - caller (what we are looking for)
+                            if (!isFirst) {
                                 initiator = matches[1];
                                 break;
                             }

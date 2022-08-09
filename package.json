@@ -1,7 +1,10 @@
 {
   "name": "btc_stuff",
   "scripts": {
-    "build": "ls *.ts */*.ts | sed 's/ts$/js linguist-generated/' > .gitattributes; tsc"
+    "build": "ls *.ts scriptanalyzer/index.js | sed 's/ts$/js linguist-generated/' > .gitattributes; tsc; tsc -p scriptanalyzer",
+    "format": "prettier --write *.ts */*.ts",
+    "lint": "eslint --fix --max-warnings 0 *.ts */*.ts",
+    "precommit": "npm run format && npm run lint && npm run build"
   },
   "dependencies": {
     "bip32": "^3.0.1",
@@ -13,6 +16,10 @@
   },
   "devDependencies": {
     "@types/node": "^17.0.12",
+    "@typescript-eslint/eslint-plugin": "^5.33.0",
+    "eslint": "^8.21.0",
+    "eslint-config-prettier": "^8.5.0",
+    "prettier": "^2.7.1",
     "typescript": "^4.5.5"
   }
 }

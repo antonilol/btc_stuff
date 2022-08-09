@@ -1,8 +1,20 @@
 import * as curve from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
-import { send, bech32toScriptPubKey, fundAddress, getnewaddress, decodeRawTransaction, schnorrPrivKey, tapLeaf, tapBranch, tapTweak, createTaprootOutput, OP_CHECKSIGADD } from './btc';
-import { ECPairFactory } from 'ecpair'
-import { randomBytes } from 'crypto'
+import {
+	send,
+	bech32toScriptPubKey,
+	fundAddress,
+	getnewaddress,
+	decodeRawTransaction,
+	schnorrPrivKey,
+	tapLeaf,
+	tapBranch,
+	tapTweak,
+	createTaprootOutput,
+	OP_CHECKSIGADD
+} from './btc';
+import { ECPairFactory } from 'ecpair';
+import { randomBytes } from 'crypto';
 
 const ECPair = ECPairFactory(curve);
 
@@ -15,9 +27,9 @@ const ecpair2 = ECPair.makeRandom({ network });
 
 // build taptree
 const leaf1script = bitcoin.script.compile([
-	ecpair2.publicKey.slice(1,33),
+	ecpair2.publicKey.slice(1, 33),
 	bitcoin.opcodes.OP_CHECKSIG,
-	ecpair2.publicKey.slice(1,33),
+	ecpair2.publicKey.slice(1, 33),
 	OP_CHECKSIGADD,
 	bitcoin.opcodes.OP_2,
 	bitcoin.opcodes.OP_EQUAL
@@ -49,12 +61,7 @@ fundAddress(address, input_sat).then(async outpoint => {
 
 	const sighash = tx.hashForWitnessV1(
 		0, // which input
-		[
-			bitcoin.script.compile([
-				bitcoin.opcodes.OP_1,
-				tr.key
-			])
-		], // All previous outputs of all inputs
+		[ bitcoin.script.compile([ bitcoin.opcodes.OP_1, tr.key ]) ], // All previous outputs of all inputs
 		[ input_sat ], // All previous values of all inputs
 		hashtype, // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
 		leaf1
@@ -64,12 +71,7 @@ fundAddress(address, input_sat).then(async outpoint => {
 	const pub = internalKey.publicKey;
 	pub.writeUint8(0xc0 | tr.parity);
 	const ctrl = Buffer.concat([ pub, leaf2 ]);
-	tx.setWitness(0, [
-		signature,
-		signature,
-		leaf1script,
-		ctrl
-	]);
+	tx.setWitness(0, [ signature, signature, leaf1script, ctrl ]);
 
 	const decoded = await decodeRawTransaction(tx.toHex());
 	console.log(JSON.stringify(decoded, null, 2));

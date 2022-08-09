@@ -118,11 +118,7 @@ function createCoinbase(address, value, height, txs, message, extraNonce, signet
     var tx = new bitcoin.Transaction();
     // in
     tx.addInput(Buffer.alloc(32), 0xffffffff);
-    tx.setInputScript(0, Buffer.concat([
-        bitcoin.script.compile([bitcoin.script.number.encode(height)]),
-        extraNonce,
-        Buffer.from(message)
-    ]));
+    tx.setInputScript(0, Buffer.concat([bitcoin.script.compile([bitcoin.script.number.encode(height)]), extraNonce, Buffer.from(message)]));
     // block reward + fees
     tx.addOutput((0, btc_1.bech32toScriptPubKey)(address), value);
     var commits = [];
@@ -130,26 +126,15 @@ function createCoinbase(address, value, height, txs, message, extraNonce, signet
         // witness commitment
         var wtxids = txs.map(function (x) { return x.hash; });
         wtxids.splice(0, 0, Buffer.alloc(32));
-        commits.push(Buffer.concat([
-            wCommitHeader,
-            bitcoin.crypto.hash256(Buffer.concat([
-                (0, merkle_tree_1.merkleRoot)(wtxids),
-                Buffer.alloc(32)
-            ]))
-        ]));
+        commits.push(Buffer.concat([wCommitHeader, bitcoin.crypto.hash256(Buffer.concat([(0, merkle_tree_1.merkleRoot)(wtxids), Buffer.alloc(32)]))]));
         tx.setWitness(0, [Buffer.alloc(32)]);
     }
     if (signet) {
         // signet block signature
-        commits.push(Buffer.concat([
-            signetHeader,
-            signetBlockSig ? signetBlockSig : Buffer.alloc(0)
-        ]));
+        commits.push(Buffer.concat([signetHeader, signetBlockSig ? signetBlockSig : Buffer.alloc(0)]));
     }
     if (commits.length) {
-        tx.addOutput(bitcoin.script.compile(__spreadArray([
-            bitcoin.opcodes.OP_RETURN
-        ], commits, true)), 0);
+        tx.addOutput(bitcoin.script.compile(__spreadArray([bitcoin.opcodes.OP_RETURN], commits, true)), 0);
     }
     // serialize
     var coinbase = tx.toBuffer();
@@ -202,7 +187,7 @@ function getWork() {
                 case 10:
                     if (!segwit) {
                         removed = 0;
-                        while (toRemove = t.transactions.find(function (x) { return x.hash != x.txid; })) {
+                        while ((toRemove = t.transactions.find(function (x) { return x.hash != x.txid; }))) {
                             removed += (0, btc_1.removeTransaction)(t, toRemove.txid).length;
                         }
                         console.log("SegWit is disabled");
@@ -241,7 +226,9 @@ function getWork() {
                                     Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
                                     mRoot.copy(block, 36);
                                     block.writeUInt32LE(time, 68);
-                                    Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex').reverse().copy(block, 72);
+                                    Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex')
+                                        .reverse()
+                                        .copy(block, 72);
                                     if (!signet || signetBlockSig) {
                                         return [2 /*return*/, { value: { block: block, mempool: mempool } }];
                                     }
@@ -334,7 +321,9 @@ function mine(header) {
         var p = (0, child_process_1.spawn)(minerd, args);
         var out = '';
         p.stdout.setEncoding('utf8');
-        p.stdout.on('data', function (data) { return out += data.toString(); });
+        p.stdout.on('data', function (data) {
+            out += data.toString();
+        });
         p.stderr.setEncoding('utf8');
         p.stderr.pipe(process.stderr);
         p.on('close', function (code) {
@@ -358,16 +347,11 @@ function signetBlockSighash(header, challenge) {
     var toSign = new bitcoin.Transaction();
     toSpend.version = 0;
     toSpend.addInput(Buffer.alloc(32), 0xffffffff, 0);
-    toSpend.setInputScript(0, bitcoin.script.compile([
-        bitcoin.opcodes.OP_0,
-        header
-    ]));
+    toSpend.setInputScript(0, bitcoin.script.compile([bitcoin.opcodes.OP_0, header]));
     toSpend.addOutput(challenge, 0);
     toSign.version = 0;
     toSign.addInput(Buffer.from(toSpend.getId(), 'hex').reverse(), 0, 0);
-    toSign.addOutput(bitcoin.script.compile([
-        bitcoin.opcodes.OP_RETURN
-    ]), 0);
+    toSign.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_RETURN]), 0);
     return {
         legacy: toSign.hashForSignature(0, challenge, bitcoin.Transaction.SIGHASH_ALL),
         witness_v0: toSign.hashForWitnessV0(0, challenge, 0, bitcoin.Transaction.SIGHASH_ALL),

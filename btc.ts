@@ -5,124 +5,143 @@ import { createInterface } from 'readline';
 import { Writable } from 'stream';
 
 const ZERO = Buffer.alloc(32);
-const ONE = Buffer.from(ZERO.map((_, i) => i == 31 ? 1 : 0));
-const TWO = Buffer.from(ZERO.map((_, i) => i == 31 ? 2 : 0));
+const ONE = Buffer.from(ZERO.map((_, i) => (i == 31 ? 1 : 0)));
+const TWO = Buffer.from(ZERO.map((_, i) => (i == 31 ? 2 : 0)));
 const N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
 
 export interface OutputPoint {
-	txid: string,
-	vout: number
+	txid: string;
+	vout: number;
 }
 
 export interface UTXO extends OutputPoint {
-	address: string,
-	label?: string,
-	scriptPubKey: string,
-	amount: number,
-	confirmations: number,
-	ancestorcount?: number,
-	ancestorsize?: number,
-	ancestorfees?: number,
-	redeemScript?: string,
-	witnessScript?: string,
-	spendable: boolean,
-	solvable: boolean,
-	reused?: boolean,
-	desc?: string,
-	safe: boolean
+	address: string;
+	label?: string;
+	scriptPubKey: string;
+	amount: number;
+	confirmations: number;
+	ancestorcount?: number;
+	ancestorsize?: number;
+	ancestorfees?: number;
+	redeemScript?: string;
+	witnessScript?: string;
+	spendable: boolean;
+	solvable: boolean;
+	reused?: boolean;
+	desc?: string;
+	safe: boolean;
 }
 
+export interface RawTransactionInput extends OutputPoint {
+	sequence?: number;
+}
+
+export type RawTransactionOutput =
+	| {
+			[address: string]: number;
+	  }
+	| {
+			data: string;
+	  };
+
 export interface TemplateRequest {
-	mode?: string,
-	capabilities?: string[],
-	rules: string[]
+	mode?: string;
+	capabilities?: string[];
+	rules: string[];
 }
 
 export interface BlockTemplateTX {
-	data: string,
-	txid: string,
-	hash: string,
-	depends: number[],
-	TXdepends: BlockTemplateTX[],
-	fee?: number,
-	sigops?: number,
-	weight: number
+	data: string;
+	txid: string;
+	hash: string;
+	depends: number[];
+	TXdepends: BlockTemplateTX[];
+	fee?: number;
+	sigops?: number;
+	weight: number;
 }
 
 export interface BlockTemplate {
-	capabilities: string[],
-	version: number,
-	rules: string[],
-	vbavailable: { [rulename: string]: number },
-	vbrequired: number,
-	previousblockhash: string,
-	transactions: BlockTemplateTX[],
-	coinbaseaux: { [key: string]: number },
-	coinbasevalue: number,
-	longpollid: string,
-	target: string,
-	mintime: number,
-	mutable: string[],
-	noncerange: string,
-	sigoplimit: number,
-	sizelimit: number,
-	weightlimit: number,
-	curtime: number,
-	bits: string,
-	height: number,
-	signet_challenge?: string
-	default_witness_commitment?: string
+	capabilities: string[];
+	version: number;
+	rules: string[];
+	vbavailable: { [rulename: string]: number };
+	vbrequired: number;
+	previousblockhash: string;
+	transactions: BlockTemplateTX[];
+	coinbaseaux: { [key: string]: number };
+	coinbasevalue: number;
+	longpollid: string;
+	target: string;
+	mintime: number;
+	mutable: string[];
+	noncerange: string;
+	sigoplimit: number;
+	sizelimit: number;
+	weightlimit: number;
+	curtime: number;
+	bits: string;
+	height: number;
+	signet_challenge?: string;
+	default_witness_commitment?: string;
 }
 
 export type ScriptType =
-	'nonstandard' | 'pubkey' | 'pubkeyhash' | 'scripthash' | 'multisig' |
-	'nulldata' | 'witness_v0_scripthash' | 'witness_v0_keyhash' |
-	'witness_v1_taproot' | 'witness_unknown'
+	| 'nonstandard'
+	| 'pubkey'
+	| 'pubkeyhash'
+	| 'scripthash'
+	| 'multisig'
+	| 'nulldata'
+	| 'witness_v0_scripthash'
+	| 'witness_v0_keyhash'
+	| 'witness_v1_taproot'
+	| 'witness_unknown';
 
 export interface ScriptPubKey {
-	asm: string,
-	desc: string,
-	hex: string,
-	type: ScriptType,
-	address?: string
+	asm: string;
+	desc: string;
+	hex: string;
+	type: ScriptType;
+	address?: string;
 }
 
 export interface Vin {
-	coinbase?: string,
-	txid?: string,
-	vout?: number,
+	coinbase?: string;
+	txid?: string;
+	vout?: number;
 	scriptSig?: {
-		asm: string,
-		hex: string
-	},
-	txinwitness?: string[],
-	sequence: number
+		asm: string;
+		hex: string;
+	};
+	txinwitness?: string[];
+	sequence: number;
 }
 
 export interface Vout {
-	value: number,
-	n: number,
-	scriptPubKey: ScriptPubKey
+	value: number;
+	n: number;
+	scriptPubKey: ScriptPubKey;
 }
 
 export interface RawTransaction {
-	txid: string,
-	hash: string,
-	size: number,
-	vsize: number,
-	weight: number,
-	version: number,
-	locktime: number,
-	vin: Vin[],
-	vout: Vout[]
+	txid: string;
+	hash: string;
+	size: number;
+	vsize: number;
+	weight: number;
+	version: number;
+	locktime: number;
+	vin: Vin[];
+	vout: Vout[];
 }
 
 export interface TXOut {
-	bestblock: string,
-	confirmations: number,
-	value: number,
-	scriptPubKey: ScriptPubKey,
-	coinbase: boolean
+	bestblock: string;
+	confirmations: number;
+	value: number;
+	scriptPubKey: ScriptPubKey;
+	coinbase: boolean;
 }
 
 export type Chain = 'main' | 'test' | 'regtest' | 'signet';
@@ -132,7 +151,7 @@ export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 	test: bitcoin.networks.testnet,
 	regtest: bitcoin.networks.regtest,
 	signet: bitcoin.networks.testnet
-}
+};
 
 var chain: Chain = 'test';
 export var network = networks[chain];
@@ -140,11 +159,7 @@ export var network = networks[chain];
 export async function btc(...args: (string | Buffer | number | {})[]): Promise<string> {
 	return new Promise((r, e) => {
 		const cmdargs = [ `-chain=${chain}`, '-stdin' ];
-		while (
-			args.length &&
-			typeof args[0] === 'string' &&
-			args[0].startsWith('-')
-		) {
+		while (args.length && typeof args[0] === 'string' && args[0].startsWith('-')) {
 			cmdargs.push(args.shift() as string);
 		}
 
@@ -153,10 +168,14 @@ export async function btc(...args: (string | Buffer | number | {})[]): Promise<s
 		var out = '';
 
 		p.stdout.setEncoding('utf8');
-		p.stdout.on('data', data => out += data.toString());
+		p.stdout.on('data', data => {
+			out += data.toString();
+		});
 
 		p.stderr.setEncoding('utf8');
-		p.stderr.on('data', data => out += data.toString());
+		p.stderr.on('data', data => {
+			out += data.toString();
+		});
 
 		p.on('close', code => {
 			while (out.endsWith('\n')) {
@@ -165,28 +184,38 @@ export async function btc(...args: (string | Buffer | number | {})[]): Promise<s
 			(code ? e : r)(out);
 		});
 
-		p.stdin.write(args.map(x => {
-			var arg: string
-			if (Buffer.isBuffer(x)) {
-				arg = x.toString('hex');
-			} else if (typeof x === 'number') {
-				arg = x.toString();
-			} else if (typeof x === 'string') {
-				arg = x;
-			} else {
-				arg = JSON.stringify(x);
-			}
-			return arg.replace(/\n/g, '');
-		}).join('\n'));
+		p.stdin.write(
+			args
+				.map(x => {
+					var arg: string;
+					if (Buffer.isBuffer(x)) {
+						arg = x.toString('hex');
+					} else if (typeof x === 'number') {
+						arg = x.toString();
+					} else if (typeof x === 'string') {
+						arg = x;
+					} else {
+						arg = JSON.stringify(x);
+					}
+					return arg.replace(/\n/g, '');
+				})
+				.join('\n')
+		);
 		p.stdin.end();
 	});
 }
 
 // sign, create and send new transaction
-export async function newtx(inputs: {}, outputs: {}, sat: boolean): Promise<string> {
+export async function newtx(
+	inputs: RawTransactionInput[],
+	outputs: RawTransactionOutput[],
+	sat: boolean
+): Promise<string> {
 	if (sat) {
 		Object.keys(outputs).forEach(k => {
-			outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+			if (k !== 'data') {
+				outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+			}
 		});
 	}
 	const tx = await btc('createrawtransaction', inputs, outputs);
@@ -197,7 +226,9 @@ export async function signAndSend(hex: string): Promise<string> {
 	return send(JSON.parse(await btc('signrawtransactionwithwallet', hex)).hex);
 }
 
-export async function fundTransaction(tx: bitcoin.Transaction): Promise<{ tx: bitcoin.Transaction, fee: number, changepos: number }> {
+export async function fundTransaction(
+	tx: bitcoin.Transaction
+): Promise<{ tx: bitcoin.Transaction; fee: number; changepos: number }> {
 	const res = JSON.parse(await btc('fundrawtransaction', tx.toHex()));
 
 	res.tx = bitcoin.Transaction.fromHex(res.hex);
@@ -211,7 +242,9 @@ export async function send(hex: string): Promise<string> {
 }
 
 export async function listunspent(minamount: number, minconf: number, sat: boolean): Promise<UTXO[]> {
-	return JSON.parse(await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`)).map((u: UTXO) => {
+	return JSON.parse(
+		await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`)
+	).map((u: UTXO) => {
 		if (sat) {
 			u.amount = Math.round(u.amount * 1e8);
 		}
@@ -223,7 +256,9 @@ export async function getnewaddress(): Promise<string> {
 	return btc('getnewaddress');
 }
 
-export async function getBlockTemplate(template_request: TemplateRequest = { rules: [ 'segwit' ] }): Promise<BlockTemplate> {
+export async function getBlockTemplate(
+	template_request: TemplateRequest = { rules: [ 'segwit' ] }
+): Promise<BlockTemplate> {
 	const template: BlockTemplate = JSON.parse(await btc('getblocktemplate', template_request));
 	updateTXDepends(template);
 	return template;
@@ -233,7 +268,7 @@ export async function decodeRawTransaction(txHex: string | Buffer): Promise<RawT
 	return JSON.parse(await btc('decoderawtransaction', txHex));
 }
 
-export async function getTXOut(txid: string | Buffer, vout: number, include_mempool: boolean = true): Promise<TXOut | void> {
+export async function getTXOut(txid: string | Buffer, vout: number, include_mempool = true): Promise<TXOut | void> {
 	const txout = await btc('gettxout', txidToString(txid), vout, include_mempool);
 	if (txout) {
 		return JSON.parse(txout);
@@ -258,9 +293,7 @@ export function validNetworks(address: string): { [name in 'bitcoin' | 'testnet'
 		try {
 			bitcoin.address.toOutputScript(address, net[1]);
 			output[net[0]] = net[1];
-		}
-		catch (e) {
-		}
+		} catch (e) {}
 	}
 
 	return output;
@@ -280,16 +313,19 @@ export function tapLeaf(script: Buffer): Buffer {
 }
 
 export function tapBranch(branch1: Buffer, branch2: Buffer): Buffer {
-	return bitcoin.crypto.taggedHash('TapBranch', Buffer.concat(branch1 < branch2 ? [ branch1, branch2 ] : [ branch2, branch1 ]));
+	return bitcoin.crypto.taggedHash(
+		'TapBranch',
+		Buffer.concat(branch1 < branch2 ? [ branch1, branch2 ] : [ branch2, branch1 ])
+	);
 }
 
 export function tapTweak(pubkey: Buffer, branch?: Buffer): Buffer {
 	return bitcoin.crypto.taggedHash('TapTweak', branch ? Buffer.concat([ pubkey.slice(-32), branch ]) : pubkey.slice(-32));
 }
 
-export function createTaprootOutput(publicKey: Buffer, tweak: Buffer): { parity: 0 | 1, key: Buffer } {
+export function createTaprootOutput(publicKey: Buffer, tweak: Buffer): { parity: 0 | 1; key: Buffer } {
 	const tweaked = curve.pointAddScalar(publicKey, tweak);
-	return { parity: (tweaked[0] & 1) as any, key: Buffer.from(tweaked).slice(-32) };
+	return { parity: (tweaked[0] & 1) as 0 | 1, key: Buffer.from(tweaked).slice(-32) };
 }
 
 export function setChain(c: Chain): void {
@@ -339,7 +375,7 @@ export async function insertTransaction(template: BlockTemplate, data: string | 
 		depends: [],
 		TXdepends: template.transactions.filter(x => rawtx.vin.map(y => y.txid).includes(x.txid)),
 		weight: rawtx.weight
-	}
+	};
 
 	template.transactions.push(tx);
 
@@ -362,10 +398,7 @@ function updateNumberDepends(template: BlockTemplate): void {
 
 export function bech32toScriptPubKey(a: string): Buffer {
 	const z = bitcoin.address.fromBech32(a);
-	return bitcoin.script.compile([
-		bitcoin.script.number.encode(z.version),
-		bitcoin.address.fromBech32(a).data
-	]);
+	return bitcoin.script.compile([ bitcoin.script.number.encode(z.version), bitcoin.address.fromBech32(a).data ]);
 }
 
 export function cloneBuf(buf: Buffer): Buffer {
@@ -423,10 +456,12 @@ export function input(q: string, visibility: InputVisibility = InputVisibility.V
 		terminal: true
 	});
 
-	const ret = new Promise<string>(r => rl.question(q, a => {
-		r(a);
-		rl.close();
-	}));
+	const ret = new Promise<string>(r =>
+		rl.question(q, a => {
+			r(a);
+			rl.close();
+		})
+	);
 
 	active = true;
 
@@ -442,6 +477,7 @@ export const consoleTrace = Object.fromEntries(
 	[ 'log', 'warn', 'error' ].map(methodName => {
 		return [
 			methodName,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			(...args: any[]) => {
 				let initiator = 'unknown place';
 				try {
@@ -452,8 +488,7 @@ export const consoleTrace = Object.fromEntries(
 						for (const line of e.stack.split('\n')) {
 							const matches = line.match(/^\s+at\s+(.*)/);
 							if (matches) {
-								if (!isFirst) { // first line - current function
-																// second line - caller (what we are looking for)
+								if (!isFirst) {
 									initiator = matches[1];
 									break;
 								}
@@ -464,6 +499,6 @@ export const consoleTrace = Object.fromEntries(
 				}
 				console[methodName](...args, '\n', `	at ${initiator}`);
 			}
-		]
+		];
 	})
-)
+);
