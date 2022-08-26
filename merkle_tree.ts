@@ -2,7 +2,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { strict as assert } from 'assert';
 
 export function merkleRoot(txids: (string | Buffer)[]): Buffer {
-	var t1 = txids.map(txid => {
+	let t1 = txids.map(txid => {
 		if (!Buffer.isBuffer(txid)) {
 			txid = Buffer.from(txid, 'hex').reverse();
 		}
@@ -11,7 +11,7 @@ export function merkleRoot(txids: (string | Buffer)[]): Buffer {
 	});
 
 	while (t1.length > 1) {
-		var t2 = [];
+		const t2 = [];
 		while (t1.length) {
 			const ids = t1.splice(0, 2);
 			if (ids.length == 1) {

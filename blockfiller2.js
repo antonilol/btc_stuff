@@ -1,4 +1,4 @@
-const { newtx, listunspent } = require('./btc');
+const { newtx, listUnspent } = require('./btc');
 
 var count = 0;
 
@@ -7,7 +7,7 @@ main();
 async function main() {
 	console.log('Listing UTXOs');
 
-	var s = (await listunspent(0.00000110, 0))
+	var s = (await listUnspent({ minamount: 110e-8, minconf: 0 }, false))
 		.filter(u => u.spendable && u.solvable);
 
 	console.log(`Found ${s.length} usable UTXO${s.length == 1 ? '' : 's'}`);

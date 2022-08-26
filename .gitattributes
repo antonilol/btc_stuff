@@ -1,6 +1,9 @@
+addresses.js linguist-generated
 btc.js linguist-generated
+descriptors.js linguist-generated
 merkle_tree.js linguist-generated
 miner.js linguist-generated
+p2tr_ptlc.js linguist-generated
 p2tr_tapscript.js linguist-generated
 scriptanalyzer/index.js
 xpriv.js linguist-generated

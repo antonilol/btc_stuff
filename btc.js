@@ -1,284 +1,180 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.consoleTrace = exports.sleep = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = void 0;
+const child_process_1 = require("child_process");
+const bitcoin = __importStar(require("bitcoinjs-lib"));
+const curve = __importStar(require("tiny-secp256k1"));
+const readline_1 = require("readline");
+const stream_1 = require("stream");
+const ecpair_1 = require("ecpair");
+const ECPair = (0, ecpair_1.ECPairFactory)(curve);
+var Uint256;
+(function (Uint256) {
+    function toBigint(b) {
+        return BigInt('0x' + Buffer.from(b).toString('hex'));
     }
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
+    Uint256.toBigint = toBigint;
+    function toBuffer(n) {
+        return Buffer.from(n.toString(16).padStart(64, '0'), 'hex');
     }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-exports.__esModule = true;
-exports.consoleTrace = exports.sleep = exports.input = exports.InputVisibility = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.schnorrPrivKey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = void 0;
-var child_process_1 = require("child_process");
-var bitcoin = require("bitcoinjs-lib");
-var curve = require("tiny-secp256k1");
-var readline_1 = require("readline");
-var stream_1 = require("stream");
-var ZERO = Buffer.alloc(32);
-var ONE = Buffer.from(ZERO.map(function (_, i) { return (i == 31 ? 1 : 0); }));
-var TWO = Buffer.from(ZERO.map(function (_, i) { return (i == 31 ? 2 : 0); }));
-var N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
+    Uint256.toBuffer = toBuffer;
+})(Uint256 = exports.Uint256 || (exports.Uint256 = {}));
 exports.networks = {
     main: bitcoin.networks.bitcoin,
     test: bitcoin.networks.testnet,
     regtest: bitcoin.networks.regtest,
     signet: bitcoin.networks.testnet
 };
-var chain = 'test';
+let chain = 'test';
 exports.network = exports.networks[chain];
-function btc() {
-    var args = [];
-    for (var _i = 0; _i < arguments.length; _i++) {
-        args[_i] = arguments[_i];
-    }
-    return __awaiter(this, void 0, void 0, function () {
-        return __generator(this, function (_a) {
-            return [2 /*return*/, new Promise(function (r, e) {
-                    var cmdargs = ["-chain=".concat(chain), '-stdin'];
-                    while (args.length && typeof args[0] === 'string' && args[0].startsWith('-')) {
-                        cmdargs.push(args.shift());
-                    }
-                    var p = (0, child_process_1.spawn)('bitcoin-cli', cmdargs);
-                    var out = '';
-                    p.stdout.setEncoding('utf8');
-                    p.stdout.on('data', function (data) {
-                        out += data.toString();
-                    });
-                    p.stderr.setEncoding('utf8');
-                    p.stderr.on('data', function (data) {
-                        out += data.toString();
-                    });
-                    p.on('close', function (code) {
-                        while (out.endsWith('\n')) {
-                            out = out.slice(0, -1);
-                        }
-                        (code ? e : r)(out);
-                    });
-                    p.stdin.write(args
-                        .map(function (x) {
-                        var arg;
-                        if (Buffer.isBuffer(x)) {
-                            arg = x.toString('hex');
-                        }
-                        else if (typeof x === 'number') {
-                            arg = x.toString();
-                        }
-                        else if (typeof x === 'string') {
-                            arg = x;
-                        }
-                        else {
-                            arg = JSON.stringify(x);
-                        }
-                        return arg.replace(/\n/g, '');
-                    })
-                        .join('\n'));
-                    p.stdin.end();
-                })];
+async function btc(...args) {
+    return new Promise((r, e) => {
+        const cmdargs = [`-chain=${chain}`, '-stdin'];
+        while (args.length && typeof args[0] === 'string' && args[0].startsWith('-')) {
+            cmdargs.push(args.shift());
+        }
+        const p = (0, child_process_1.spawn)('bitcoin-cli', cmdargs);
+        let out = '';
+        p.stdout.setEncoding('utf8');
+        p.stdout.on('data', data => {
+            out += data.toString();
         });
+        p.stderr.setEncoding('utf8');
+        p.stderr.on('data', data => {
+            out += data.toString();
+        });
+        p.on('close', code => {
+            while (out.endsWith('\n')) {
+                out = out.slice(0, -1);
+            }
+            (code ? e : r)(out);
+        });
+        p.stdin.write(args
+            .map(x => {
+            let arg;
+            if (Buffer.isBuffer(x)) {
+                arg = x.toString('hex');
+            }
+            else if (typeof x === 'number') {
+                arg = x.toString();
+            }
+            else if (typeof x === 'string') {
+                arg = x;
+            }
+            else {
+                arg = JSON.stringify(x);
+            }
+            return arg.replace(/\n/g, '');
+        })
+            .join('\n'));
+        p.stdin.end();
     });
 }
 exports.btc = btc;
 // sign, create and send new transaction
-function newtx(inputs, outputs, sat) {
-    return __awaiter(this, void 0, void 0, function () {
-        var tx;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    if (sat) {
-                        Object.keys(outputs).forEach(function (k) {
-                            if (k !== 'data') {
-                                outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
-                            }
-                        });
-                    }
-                    return [4 /*yield*/, btc('createrawtransaction', inputs, outputs)];
-                case 1:
-                    tx = _a.sent();
-                    return [2 /*return*/, signAndSend(tx)];
+async function newtx(inputs, outputs, sat) {
+    if (sat) {
+        Object.keys(outputs).forEach(k => {
+            if (k !== 'data') {
+                outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
             }
         });
-    });
+    }
+    const tx = await btc('createrawtransaction', inputs, outputs);
+    return signAndSend(tx);
 }
 exports.newtx = newtx;
-function signAndSend(hex) {
-    return __awaiter(this, void 0, void 0, function () {
-        var _a, _b, _c;
-        return __generator(this, function (_d) {
-            switch (_d.label) {
-                case 0:
-                    _a = send;
-                    _c = (_b = JSON).parse;
-                    return [4 /*yield*/, btc('signrawtransactionwithwallet', hex)];
-                case 1: return [2 /*return*/, _a.apply(void 0, [_c.apply(_b, [_d.sent()]).hex])];
-            }
-        });
-    });
+async function signAndSend(hex) {
+    return send(JSON.parse(await btc('signrawtransactionwithwallet', hex)).hex);
 }
 exports.signAndSend = signAndSend;
-function fundTransaction(tx) {
-    return __awaiter(this, void 0, void 0, function () {
-        var res, _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0:
-                    _b = (_a = JSON).parse;
-                    return [4 /*yield*/, btc('fundrawtransaction', tx.toHex())];
-                case 1:
-                    res = _b.apply(_a, [_c.sent()]);
-                    res.tx = bitcoin.Transaction.fromHex(res.hex);
-                    delete res.hex;
-                    return [2 /*return*/, res];
-            }
-        });
-    });
+async function fundTransaction(tx) {
+    const res = JSON.parse(await btc('fundrawtransaction', tx.toHex()));
+    res.tx = bitcoin.Transaction.fromHex(res.hex);
+    delete res.hex;
+    return res;
 }
 exports.fundTransaction = fundTransaction;
-function send(hex) {
-    return __awaiter(this, void 0, void 0, function () {
-        return __generator(this, function (_a) {
-            return [2 /*return*/, btc('sendrawtransaction', hex)];
-        });
-    });
+async function send(hex) {
+    return btc('sendrawtransaction', hex);
 }
 exports.send = send;
-function listunspent(minamount, minconf, sat) {
-    return __awaiter(this, void 0, void 0, function () {
-        var _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0:
-                    _b = (_a = JSON).parse;
-                    return [4 /*yield*/, btc('-named', 'listunspent', 'minconf=' + minconf, "query_options={\"minimumAmount\":".concat(minamount, "}"))];
-                case 1: return [2 /*return*/, _b.apply(_a, [_c.sent()]).map(function (u) {
-                        if (sat) {
-                            u.amount = Math.round(u.amount * 1e8);
-                        }
-                        return u;
-                    })];
-            }
-        });
+/** @deprecated Use listUnspent instead */
+async function listunspent(minamount, minconf, sat) {
+    return JSON.parse(await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`)).map((u) => {
+        if (sat) {
+            u.amount = toSat(u.amount);
+        }
+        return u;
     });
 }
 exports.listunspent = listunspent;
-function getnewaddress() {
-    return __awaiter(this, void 0, void 0, function () {
-        return __generator(this, function (_a) {
-            return [2 /*return*/, btc('getnewaddress')];
-        });
-    });
+/** Lists unspent transaction outputs (UTXOs) */
+async function listUnspent(args = {}, sats = true) {
+    const minconf = args.minconf === undefined ? 1 : args.minconf;
+    const maxconf = args.maxconf === undefined ? 9999999 : args.maxconf;
+    const addresses = args.addresses || [];
+    const include_unsafe = args.include_unsafe === undefined ? true : args.include_unsafe;
+    const query_options = {};
+    for (const k in args) {
+        if (['minimumAmount', 'maximumAmount', 'maximumCount', 'minimumSumAmount'].includes(k)) {
+            query_options[k] = sats && k.endsWith('Amount') ? toSat(args[k]) : args[k];
+        }
+    }
+    return JSON.parse(await btc('listunspent', minconf, maxconf, addresses, include_unsafe, query_options));
+}
+exports.listUnspent = listUnspent;
+async function getnewaddress() {
+    return btc('getnewaddress');
 }
 exports.getnewaddress = getnewaddress;
-function getBlockTemplate(template_request) {
-    if (template_request === void 0) { template_request = { rules: ['segwit'] }; }
-    return __awaiter(this, void 0, void 0, function () {
-        var template, _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0:
-                    _b = (_a = JSON).parse;
-                    return [4 /*yield*/, btc('getblocktemplate', template_request)];
-                case 1:
-                    template = _b.apply(_a, [_c.sent()]);
-                    updateTXDepends(template);
-                    return [2 /*return*/, template];
-            }
-        });
-    });
+async function getBlockTemplate(template_request = { rules: ['segwit'] }) {
+    const template = JSON.parse(await btc('getblocktemplate', template_request));
+    updateTXDepends(template);
+    return template;
 }
 exports.getBlockTemplate = getBlockTemplate;
-function decodeRawTransaction(txHex) {
-    return __awaiter(this, void 0, void 0, function () {
-        var _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0:
-                    _b = (_a = JSON).parse;
-                    return [4 /*yield*/, btc('decoderawtransaction', txHex)];
-                case 1: return [2 /*return*/, _b.apply(_a, [_c.sent()])];
-            }
-        });
-    });
+async function decodeRawTransaction(txHex) {
+    return JSON.parse(await btc('decoderawtransaction', txHex));
 }
 exports.decodeRawTransaction = decodeRawTransaction;
-function getTXOut(txid, vout, include_mempool) {
-    if (include_mempool === void 0) { include_mempool = true; }
-    return __awaiter(this, void 0, void 0, function () {
-        var txout;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4 /*yield*/, btc('gettxout', txidToString(txid), vout, include_mempool)];
-                case 1:
-                    txout = _a.sent();
-                    if (txout) {
-                        return [2 /*return*/, JSON.parse(txout)];
-                    }
-                    return [2 /*return*/];
-            }
-        });
-    });
+async function getTXOut(txid, vout, include_mempool = true) {
+    const txout = await btc('gettxout', txidToString(txid), vout, include_mempool);
+    if (txout) {
+        return JSON.parse(txout);
+    }
 }
 exports.getTXOut = getTXOut;
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
-function fundAddress(address, amount) {
-    return __awaiter(this, void 0, void 0, function () {
-        var txid, vout, _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0: return [4 /*yield*/, btc('sendtoaddress', address, toBTC(amount))];
-                case 1:
-                    txid = _c.sent();
-                    _b = (_a = JSON).parse;
-                    return [4 /*yield*/, btc('gettransaction', txid)];
-                case 2:
-                    vout = _b.apply(_a, [_c.sent()]).details.find(function (x) { return x.address == address; }).vout;
-                    return [2 /*return*/, { txid: txid, vout: vout }];
-            }
-        });
-    });
+async function fundAddress(address, amount) {
+    // return fundScript(bitcoin.address.toOutputScript(address, network), amount);
+    const txid = await btc('sendtoaddress', address, toBTC(amount));
+    const vout = JSON.parse(await btc('gettransaction', txid)).details.find(x => x.address == address).vout;
+    return { txid, vout };
 }
 exports.fundAddress = fundAddress;
 function validNetworks(address) {
-    var output = {};
-    for (var _i = 0, _a = Object.entries(bitcoin.networks); _i < _a.length; _i++) {
-        var net = _a[_i];
+    const output = {};
+    for (const net of Object.entries(bitcoin.networks)) {
         try {
             bitcoin.address.toOutputScript(address, net[1]);
             output[net[0]] = net[1];
@@ -289,13 +185,28 @@ function validNetworks(address) {
 }
 exports.validNetworks = validNetworks;
 exports.OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
-function schnorrPrivKey(d) {
+const ONE = Uint256.toBuffer(1n);
+const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n)));
+function negateIfOddPubkey(d) {
     if (curve.pointFromScalar(d, true)[0] == 3) {
         return Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, d), ONE));
     }
     return Buffer.from(d);
 }
-exports.schnorrPrivKey = schnorrPrivKey;
+exports.negateIfOddPubkey = negateIfOddPubkey;
+const EC_N = Uint256.toBigint(N_LESS_1) + 1n;
+function ecPrivateMul(a, b) {
+    const an = Uint256.toBigint(a);
+    const bn = Uint256.toBigint(b);
+    if (an <= 0n || an >= EC_N) {
+        throw new Error('a out of range');
+    }
+    if (bn <= 0n || bn >= EC_N) {
+        throw new Error('b out of range');
+    }
+    return Uint256.toBuffer((an * bn) % EC_N);
+}
+exports.ecPrivateMul = ecPrivateMul;
 function tapLeaf(script) {
     return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0, script.length]), script]));
 }
@@ -304,13 +215,31 @@ function tapBranch(branch1, branch2) {
     return bitcoin.crypto.taggedHash('TapBranch', Buffer.concat(branch1 < branch2 ? [branch1, branch2] : [branch2, branch1]));
 }
 exports.tapBranch = tapBranch;
-function tapTweak(pubkey, branch) {
-    return bitcoin.crypto.taggedHash('TapTweak', branch ? Buffer.concat([pubkey.slice(-32), branch]) : pubkey.slice(-32));
+function tapTweak(pubkey, root) {
+    return bitcoin.crypto.taggedHash('TapTweak', root ? Buffer.concat([pubkey.slice(-32), root]) : pubkey.slice(-32));
 }
 exports.tapTweak = tapTweak;
-function createTaprootOutput(publicKey, tweak) {
-    var tweaked = curve.pointAddScalar(publicKey, tweak);
-    return { parity: (tweaked[0] & 1), key: Buffer.from(tweaked).slice(-32) };
+function bip86(ecpair) {
+    const tweak = tapTweak(ecpair.publicKey);
+    const opts = {
+        compressed: ecpair.compressed,
+        network: ecpair.network
+    };
+    if (ecpair.privateKey) {
+        return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(ecpair.privateKey, tweak)), opts);
+    }
+    return ECPair.fromPublicKey(Buffer.from(curve.pointAddScalar(ecpair.publicKey, tweak)), opts);
+}
+exports.bip86 = bip86;
+function createTaprootOutput(pubkey, root) {
+    const tweaked = curve.pointAddScalar(pubkey, tapTweak(pubkey, root));
+    const key = Buffer.from(tweaked).slice(-32);
+    return {
+        key,
+        parity: (tweaked[0] & 1),
+        scriptPubKey: bitcoin.script.compile([bitcoin.opcodes.OP_1, key]),
+        address: bitcoin.address.toBech32(key, 1, exports.network.bech32)
+    };
 }
 exports.createTaprootOutput = createTaprootOutput;
 function setChain(c) {
@@ -324,64 +253,53 @@ exports.setChain = setChain;
 // subtracts fee of removed transactions from coinbasevalue
 // returns all removed transactions
 function removeTransaction(template, txid) {
-    var txs = template.transactions;
-    var tx = txs.find(function (x) { return x.txid == txid; });
+    const txs = template.transactions;
+    const tx = txs.find(x => x.txid == txid);
     if (!tx) {
         return [];
     }
-    var toRemove = [tx];
-    var removed = [];
+    const toRemove = [tx];
+    const removed = [];
     while (toRemove.length) {
-        var tx_1 = toRemove.shift();
-        toRemove.push.apply(toRemove, tx_1.TXdepends);
-        removed.push.apply(removed, txs.splice(txs.indexOf(tx_1), 1));
+        const tx = toRemove.shift();
+        toRemove.push(...tx.TXdepends);
+        removed.push(...txs.splice(txs.indexOf(tx), 1));
     }
-    template.coinbasevalue -= removed.reduce(function (v, x) { return v + x.fee; }, 0);
+    template.coinbasevalue -= removed.reduce((v, x) => v + x.fee, 0);
     updateNumberDepends(template);
     return removed;
 }
 exports.removeTransaction = removeTransaction;
-function insertTransaction(template, data) {
-    return __awaiter(this, void 0, void 0, function () {
-        var rawtx, tx;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4 /*yield*/, decodeRawTransaction(data)];
-                case 1:
-                    rawtx = _a.sent();
-                    if (template.transactions.find(function (x) { return x.txid == rawtx.txid; })) {
-                        return [2 /*return*/, false];
-                    }
-                    tx = {
-                        data: Buffer.isBuffer(data) ? data.toString('hex') : data,
-                        txid: rawtx.txid,
-                        hash: rawtx.hash,
-                        depends: [],
-                        TXdepends: template.transactions.filter(function (x) { return rawtx.vin.map(function (y) { return y.txid; }).includes(x.txid); }),
-                        weight: rawtx.weight
-                    };
-                    template.transactions.push(tx);
-                    updateNumberDepends(template);
-                    return [2 /*return*/, true];
-            }
-        });
-    });
+async function insertTransaction(template, data) {
+    const rawtx = await decodeRawTransaction(data);
+    if (template.transactions.find(x => x.txid == rawtx.txid)) {
+        return false;
+    }
+    const tx = {
+        data: Buffer.isBuffer(data) ? data.toString('hex') : data,
+        txid: rawtx.txid,
+        hash: rawtx.hash,
+        depends: [],
+        TXdepends: template.transactions.filter(x => rawtx.vin.map(y => y.txid).includes(x.txid)),
+        weight: rawtx.weight
+    };
+    template.transactions.push(tx);
+    updateNumberDepends(template);
+    return true;
 }
 exports.insertTransaction = insertTransaction;
 function updateTXDepends(template) {
-    for (var _i = 0, _a = template.transactions; _i < _a.length; _i++) {
-        var tx = _a[_i];
-        tx.TXdepends = tx.depends.map(function (i) { return template.transactions[i - 1]; });
+    for (const tx of template.transactions) {
+        tx.TXdepends = tx.depends.map(i => template.transactions[i - 1]);
     }
 }
 function updateNumberDepends(template) {
-    for (var _i = 0, _a = template.transactions; _i < _a.length; _i++) {
-        var tx = _a[_i];
-        tx.depends = tx.TXdepends.map(function (tx) { return template.transactions.indexOf(tx) + 1; });
+    for (const tx of template.transactions) {
+        tx.depends = tx.TXdepends.map(tx => template.transactions.indexOf(tx) + 1);
     }
 }
 function bech32toScriptPubKey(a) {
-    var z = bitcoin.address.fromBech32(a);
+    const z = bitcoin.address.fromBech32(a);
     return bitcoin.script.compile([bitcoin.script.number.encode(z.version), bitcoin.address.fromBech32(a).data]);
 }
 exports.bech32toScriptPubKey = bech32toScriptPubKey;
@@ -396,85 +314,64 @@ function txidToString(txid) {
     return cloneBuf(txid).reverse().toString('hex');
 }
 exports.txidToString = txidToString;
-function toSat(BTC) {
+function toSat(btcAmount) {
     // prevent floating point quirks: 4.24524546 * 1e8 = 424524545.99999994
-    return Math.round(BTC * 1e8);
+    return Math.round(btcAmount * 1e8);
 }
 exports.toSat = toSat;
-function toBTC(sat) {
+function toBTC(satAmount) {
     // prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
-    return parseFloat((sat * 1e-8).toFixed(8));
+    return parseFloat((satAmount * 1e-8).toFixed(8));
 }
 exports.toBTC = toBTC;
-var InputVisibility;
-(function (InputVisibility) {
-    InputVisibility[InputVisibility["Visible"] = 0] = "Visible";
-    InputVisibility[InputVisibility["Asterisks"] = 1] = "Asterisks";
-    InputVisibility[InputVisibility["Invisible"] = 2] = "Invisible";
-})(InputVisibility = exports.InputVisibility || (exports.InputVisibility = {}));
-function input(q, visibility) {
-    if (visibility === void 0) { visibility = InputVisibility.Visible; }
-    var active = false;
-    var rl = (0, readline_1.createInterface)({
+async function input(q, hide = false) {
+    let active = false;
+    const rl = (0, readline_1.createInterface)({
         input: process.stdin,
         output: new stream_1.Writable({
-            write: function (chunk, encoding, cb) {
-                var c = Buffer.from(chunk, encoding);
-                if (active && visibility != InputVisibility.Visible) {
+            write: (chunk, encoding, cb) => {
+                const c = Buffer.from(chunk, encoding);
+                if (active && hide) {
                     if (c.toString() == '\r\n' || c.toString() == '\n') {
                         console.log();
                         return cb();
                     }
                 }
-                if (!active || visibility == InputVisibility.Visible) {
+                else {
                     process.stdout.write(c);
-                }
-                else if (visibility == InputVisibility.Asterisks) {
-                    process.stdout.write('*'.repeat(c.length));
                 }
                 cb();
             }
         }),
         terminal: true
     });
-    var ret = new Promise(function (r) {
-        return rl.question(q, function (a) {
-            r(a);
-            rl.close();
-        });
-    });
+    const ret = new Promise(r => rl.question(q, a => {
+        r(a);
+        rl.close();
+    }));
     active = true;
     return ret;
 }
 exports.input = input;
-function sleep(ms) {
-    return __awaiter(this, void 0, void 0, function () {
-        return __generator(this, function (_a) {
-            return [2 /*return*/, new Promise(function (r) { return setTimeout(r, ms); })];
-        });
-    });
+async function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
 }
 exports.sleep = sleep;
 // from https://stackoverflow.com/a/47296370/13800918, edited
-exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function (methodName) {
+exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(methodName => {
     return [
         methodName,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        function () {
-            var args = [];
-            for (var _i = 0; _i < arguments.length; _i++) {
-                args[_i] = arguments[_i];
-            }
-            var initiator = 'unknown place';
+        (...args) => {
+            let initiator = 'unknown place';
             try {
                 throw new Error();
             }
             catch (e) {
                 if (typeof e.stack === 'string') {
-                    var isFirst = true;
-                    for (var _a = 0, _b = e.stack.split('\n'); _a < _b.length; _a++) {
-                        var line = _b[_a];
-                        var matches = line.match(/^\s+at\s+(.*)/);
+                    let isFirst = true;
+                    for (const line of e.stack.split('\n')) {
+                        const matches = line.match(/^\s+at\s+(.*)/);
                         if (matches) {
                             if (!isFirst) {
                                 initiator = matches[1];
@@ -485,7 +382,7 @@ exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(function 
                     }
                 }
             }
-            console[methodName].apply(console, __spreadArray(__spreadArray([], args, false), ['\n', "\tat ".concat(initiator)], false));
+            console[methodName](...args, '\n', `	at ${initiator}`);
         }
     ];
 }));

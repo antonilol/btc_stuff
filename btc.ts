@@ -3,11 +3,19 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as curve from 'tiny-secp256k1';
 import { createInterface } from 'readline';
 import { Writable } from 'stream';
+import { ECPairFactory, ECPairInterface } from 'ecpair';
 
-const ZERO = Buffer.alloc(32);
-const ONE = Buffer.from(ZERO.map((_, i) => (i == 31 ? 1 : 0)));
-const TWO = Buffer.from(ZERO.map((_, i) => (i == 31 ? 2 : 0)));
-const N_LESS_1 = Buffer.from(curve.privateSub(ONE, TWO));
+const ECPair = ECPairFactory(curve);
+
+export namespace Uint256 {
+	export function toBigint(b: Uint8Array): bigint {
+		return BigInt('0x' + Buffer.from(b).toString('hex'));
+	}
+
+	export function toBuffer(n: bigint): Buffer {
+		return Buffer.from(n.toString(16).padStart(64, '0'), 'hex');
+	}
+}
 
 export interface OutputPoint {
 	txid: string;
@@ -144,6 +152,25 @@ export interface TXOut {
 	coinbase: boolean;
 }
 
+export interface ListUnspentArgs {
+	/** Default value: 1 */
+	minconf?: number;
+	/** Default value: 9999999 */
+	maxconf?: number;
+	/** Default value: [] */
+	addresses?: string[];
+	/** Default value: true */
+	include_unsafe?: boolean;
+	/** Default value: 0 */
+	minimumAmount?: number;
+	/** Default value: unlimited */
+	maximumAmount?: number;
+	/** Default value: unlimited */
+	maximumCount?: number;
+	/** Default value: unlimited */
+	minimumSumAmount?: number;
+}
+
 export type Chain = 'main' | 'test' | 'regtest' | 'signet';
 
 export const networks: { [name in Chain]: bitcoin.networks.Network } = {
@@ -153,8 +180,8 @@ export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 	signet: bitcoin.networks.testnet
 };
 
-var chain: Chain = 'test';
-export var network = networks[chain];
+let chain: Chain = 'test';
+export let network = networks[chain];
 
 export async function btc(...args: (string | Buffer | number | {})[]): Promise<string> {
 	return new Promise((r, e) => {
@@ -165,7 +192,7 @@ export async function btc(...args: (string | Buffer | number | {})[]): Promise<s
 
 		const p = spawn('bitcoin-cli', cmdargs);
 
-		var out = '';
+		let out = '';
 
 		p.stdout.setEncoding('utf8');
 		p.stdout.on('data', data => {
@@ -187,7 +214,7 @@ export async function btc(...args: (string | Buffer | number | {})[]): Promise<s
 		p.stdin.write(
 			args
 				.map(x => {
-					var arg: string;
+					let arg: string;
 					if (Buffer.isBuffer(x)) {
 						arg = x.toString('hex');
 					} else if (typeof x === 'number') {
@@ -241,15 +268,31 @@ export async function send(hex: string): Promise<string> {
 	return btc('sendrawtransaction', hex);
 }
 
+/** @deprecated Use listUnspent instead */
 export async function listunspent(minamount: number, minconf: number, sat: boolean): Promise<UTXO[]> {
 	return JSON.parse(
 		await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`)
 	).map((u: UTXO) => {
 		if (sat) {
-			u.amount = Math.round(u.amount * 1e8);
+			u.amount = toSat(u.amount);
 		}
 		return u;
 	});
+}
+
+/** Lists unspent transaction outputs (UTXOs) */
+export async function listUnspent(args: ListUnspentArgs = {}, sats = true): Promise<UTXO[]> {
+	const minconf = args.minconf === undefined ? 1 : args.minconf;
+	const maxconf = args.maxconf === undefined ? 9999999 : args.maxconf;
+	const addresses = args.addresses || [];
+	const include_unsafe = args.include_unsafe === undefined ? true : args.include_unsafe;
+	const query_options = {};
+	for (const k in args) {
+		if ([ 'minimumAmount', 'maximumAmount', 'maximumCount', 'minimumSumAmount' ].includes(k)) {
+			query_options[k] = sats && k.endsWith('Amount') ? toSat(args[k]) : args[k];
+		}
+	}
+	return JSON.parse(await btc('listunspent', minconf, maxconf, addresses, include_unsafe, query_options));
 }
 
 export async function getnewaddress(): Promise<string> {
@@ -301,11 +344,28 @@ export function validNetworks(address: string): { [name in 'bitcoin' | 'testnet'
 
 export const OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
 
-export function schnorrPrivKey(d: Uint8Array): Buffer {
+const ONE = Uint256.toBuffer(1n);
+const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n)));
+
+export function negateIfOddPubkey(d: Uint8Array): Buffer {
 	if (curve.pointFromScalar(d, true)[0] == 3) {
 		return Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, d), ONE));
 	}
 	return Buffer.from(d);
+}
+
+const EC_N = Uint256.toBigint(N_LESS_1) + 1n;
+
+export function ecPrivateMul(a: Uint8Array, b: Uint8Array): Buffer {
+	const an = Uint256.toBigint(a);
+	const bn = Uint256.toBigint(b);
+	if (an <= 0n || an >= EC_N) {
+		throw new Error('a out of range');
+	}
+	if (bn <= 0n || bn >= EC_N) {
+		throw new Error('b out of range');
+	}
+	return Uint256.toBuffer((an * bn) % EC_N);
 }
 
 export function tapLeaf(script: Buffer): Buffer {
@@ -319,13 +379,34 @@ export function tapBranch(branch1: Buffer, branch2: Buffer): Buffer {
 	);
 }
 
-export function tapTweak(pubkey: Buffer, branch?: Buffer): Buffer {
-	return bitcoin.crypto.taggedHash('TapTweak', branch ? Buffer.concat([ pubkey.slice(-32), branch ]) : pubkey.slice(-32));
+export function tapTweak(pubkey: Buffer, root?: Buffer): Buffer {
+	return bitcoin.crypto.taggedHash('TapTweak', root ? Buffer.concat([ pubkey.slice(-32), root ]) : pubkey.slice(-32));
 }
 
-export function createTaprootOutput(publicKey: Buffer, tweak: Buffer): { parity: 0 | 1; key: Buffer } {
-	const tweaked = curve.pointAddScalar(publicKey, tweak);
-	return { parity: (tweaked[0] & 1) as 0 | 1, key: Buffer.from(tweaked).slice(-32) };
+export function bip86(ecpair: ECPairInterface): ECPairInterface {
+	const tweak = tapTweak(ecpair.publicKey);
+	const opts = {
+		compressed: ecpair.compressed,
+		network: ecpair.network
+	};
+	if (ecpair.privateKey) {
+		return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(ecpair.privateKey, tweak)), opts);
+	}
+	return ECPair.fromPublicKey(Buffer.from(curve.pointAddScalar(ecpair.publicKey, tweak)), opts);
+}
+
+export function createTaprootOutput(
+	pubkey: Buffer,
+	root?: Buffer
+): { key: Buffer; parity: 0 | 1; scriptPubKey: Buffer; address: string } {
+	const tweaked = curve.pointAddScalar(pubkey, tapTweak(pubkey, root));
+	const key = Buffer.from(tweaked).slice(-32);
+	return {
+		key,
+		parity: (tweaked[0] & 1) as 0 | 1,
+		scriptPubKey: bitcoin.script.compile([ bitcoin.opcodes.OP_1, key ]),
+		address: bitcoin.address.toBech32(key, 1, network.bech32)
+	};
 }
 
 export function setChain(c: Chain): void {
@@ -412,24 +493,18 @@ export function txidToString(txid: string | Buffer): string {
 	return cloneBuf(txid).reverse().toString('hex');
 }
 
-export function toSat(BTC: number): number {
+export function toSat(btcAmount: number): number {
 	// prevent floating point quirks: 4.24524546 * 1e8 = 424524545.99999994
-	return Math.round(BTC * 1e8);
+	return Math.round(btcAmount * 1e8);
 }
 
-export function toBTC(sat: number): number {
+export function toBTC(satAmount: number): number {
 	// prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
-	return parseFloat((sat * 1e-8).toFixed(8));
+	return parseFloat((satAmount * 1e-8).toFixed(8));
 }
 
-export enum InputVisibility {
-	Visible,
-	Asterisks,
-	Invisible
-}
-
-export function input(q: string, visibility: InputVisibility = InputVisibility.Visible): Promise<string> {
-	var active = false;
+export async function input(q: string, hide = false): Promise<string> {
+	let active = false;
 
 	const rl = createInterface({
 		input: process.stdin,
@@ -437,17 +512,13 @@ export function input(q: string, visibility: InputVisibility = InputVisibility.V
 			write: (chunk, encoding, cb) => {
 				const c = Buffer.from(chunk, encoding);
 
-				if (active && visibility != InputVisibility.Visible) {
+				if (active && hide) {
 					if (c.toString() == '\r\n' || c.toString() == '\n') {
 						console.log();
 						return cb();
 					}
-				}
-
-				if (!active || visibility == InputVisibility.Visible) {
+				} else {
 					process.stdout.write(c);
-				} else if (visibility == InputVisibility.Asterisks) {
-					process.stdout.write('*'.repeat(c.length));
 				}
 
 				cb();

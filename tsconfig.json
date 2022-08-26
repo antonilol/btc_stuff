@@ -1,4 +1,10 @@
 {
+  "compilerOptions": {
+    "target": "es2021",
+    "moduleResolution": "node",
+    "module": "commonjs",
+    "esModuleInterop": true
+  },
   "exclude": [
     "scriptanalyzer"
   ]

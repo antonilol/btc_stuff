@@ -1,4 +1,4 @@
-const { btc, send, listunspent, getnewaddress, bech32toScriptPubKey, input } = require('./btc');
+const { btc, send, listUnspent, getnewaddress, bech32toScriptPubKey, input } = require('./btc');
 const bitcoin = require('bitcoinjs-lib');
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_ALL;
@@ -7,7 +7,7 @@ const ECPair = require('ecpair').ECPairFactory(require('tiny-secp256k1'));
 main();
 
 async function main() {
-	const u = (await listunspent(0, 0, true)).filter(x => x.solvable && x.spendable && x.desc.startsWith('wpkh'));
+	const u = (await listUnspent({ minconf: 0 })).filter(x => x.solvable && x.spendable && x.desc.startsWith('wpkh'));
 
 	console.log(u);
 

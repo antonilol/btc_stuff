@@ -40,7 +40,7 @@ const cheat = false;
 
 const args = process.argv.slice(2);
 
-var blocks = -1;
+let blocks = -1;
 
 if (args.length > 0) {
 	blocks = parseInt(args[0]);
@@ -53,6 +53,8 @@ if (args.length > 0) {
 	}
 }
 
+let templateFile: string | undefined;
+
 if (args.length > 1) {
 	templateFile = args[1];
 
@@ -63,10 +65,10 @@ if (args.length > 1) {
 
 function encodeVarUIntLE(n: number): Buffer {
 	assert(n >= 0 && n < 2 ** 32);
-	var l = 1;
-	var b = '8';
-	var off = 0;
-	var i: number;
+	let l = 1;
+	let b = '8';
+	let off = 0;
+	let i: number;
 	if (n > 0xffff) {
 		l = 5;
 		b = '32LE';
@@ -85,8 +87,6 @@ function encodeVarUIntLE(n: number): Buffer {
 	}
 	return buf;
 }
-
-var templateFile: string | undefined;
 
 // BIP141
 const wCommitHeader = Buffer.from('aa21a9ed', 'hex');
@@ -144,7 +144,7 @@ function createCoinbase(
 }
 
 async function getWork() {
-	var t: BlockTemplate;
+	let t: BlockTemplate;
 	if (templateFile) {
 		t = JSON.parse(readFileSync(templateFile).toString());
 	} else {
@@ -155,7 +155,7 @@ async function getWork() {
 		t = await getBlockTemplate(req);
 	}
 
-	var time: number;
+	let time: number;
 	if (cheat) {
 		const prev = await btc('getblockheader', t.previousblockhash);
 		time = JSON.parse(prev).time + 20 * 60 + 1;
@@ -171,8 +171,8 @@ async function getWork() {
 	}
 
 	if (!segwit) {
-		var toRemove: BlockTemplateTX;
-		var removed = 0;
+		let toRemove: BlockTemplateTX;
+		let removed = 0;
 		while ((toRemove = t.transactions.find(x => x.hash != x.txid))) {
 			removed += removeTransaction(t, toRemove.txid).length;
 		}
@@ -192,12 +192,12 @@ async function getWork() {
 
 	const extraNonce = randomBytes(4);
 
-	var signetBlockSig: Buffer | undefined;
+	let signetBlockSig: Buffer | undefined;
 
 	while (true) {
 		const coinbase = createCoinbase(address, t.coinbasevalue, t.height, txs, message, extraNonce, signetBlockSig);
 
-		var txlen = coinbase.tx.length;
+		let txlen = coinbase.tx.length;
 		txs.forEach(tx => {
 			txlen += tx.data.length / 2;
 		});
@@ -206,7 +206,7 @@ async function getWork() {
 		const block = Buffer.allocUnsafe(txoffset + txlen);
 		txcount.copy(block, 80);
 		coinbase.tx.copy(block, txoffset);
-		var o = txoffset + coinbase.tx.length;
+		let o = txoffset + coinbase.tx.length;
 		txs.forEach(tx => {
 			const data = Buffer.from(tx.data, 'hex');
 			data.copy(block, o);
@@ -279,7 +279,7 @@ async function main() {
 	}
 }
 
-var first = true;
+let first = true;
 
 function mine(header: Buffer): Promise<Buffer | void> {
 	return new Promise((r, e) => {
@@ -290,7 +290,7 @@ function mine(header: Buffer): Promise<Buffer | void> {
 		}
 		const p = spawn(minerd, args);
 
-		var out = '';
+		let out = '';
 
 		p.stdout.setEncoding('utf8');
 		p.stdout.on('data', data => {

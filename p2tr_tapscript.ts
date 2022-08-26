@@ -6,10 +6,9 @@ import {
 	fundAddress,
 	getnewaddress,
 	decodeRawTransaction,
-	schnorrPrivKey,
+	negateIfOddPubkey,
 	tapLeaf,
 	tapBranch,
-	tapTweak,
 	createTaprootOutput,
 	OP_CHECKSIGADD
 } from './btc';
@@ -21,7 +20,7 @@ const ECPair = ECPairFactory(curve);
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_DEFAULT;
 
-const internalKey = ECPair.fromPrivateKey(schnorrPrivKey(randomBytes(32)), { network });
+const internalKey = ECPair.fromPrivateKey(negateIfOddPubkey(randomBytes(32)), { network });
 
 const ecpair2 = ECPair.makeRandom({ network });
 
@@ -41,17 +40,14 @@ const leaf2 = Buffer.alloc(32); // all zeros
 
 const branch = tapBranch(leaf1, leaf2);
 
-const tweak = tapTweak(internalKey.publicKey, branch);
-
-const tr = createTaprootOutput(internalKey.publicKey, tweak);
+const tr = createTaprootOutput(internalKey.publicKey, branch);
 
 const fee_sat = 150;
 const input_sat = 1000;
 
-const address = bitcoin.address.toBech32(tr.key, 1, network.bech32);
-console.log(address);
+console.log(tr.address);
 
-fundAddress(address, input_sat).then(async outpoint => {
+fundAddress(tr.address, input_sat).then(async outpoint => {
 	const tx = new bitcoin.Transaction();
 
 	tx.version = 2;
@@ -61,13 +57,13 @@ fundAddress(address, input_sat).then(async outpoint => {
 
 	const sighash = tx.hashForWitnessV1(
 		0, // which input
-		[ bitcoin.script.compile([ bitcoin.opcodes.OP_1, tr.key ]) ], // All previous outputs of all inputs
+		[ tr.scriptPubKey ], // All previous outputs of all inputs
 		[ input_sat ], // All previous values of all inputs
 		hashtype, // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
 		leaf1
 	);
 
-	const signature = Buffer.from(curve.signSchnorr(sighash, ecpair2.privateKey));
+	const signature = ecpair2.signSchnorr(sighash);
 	const pub = internalKey.publicKey;
 	pub.writeUint8(0xc0 | tr.parity);
 	const ctrl = Buffer.concat([ pub, leaf2 ]);

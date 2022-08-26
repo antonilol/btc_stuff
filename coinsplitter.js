@@ -1,4 +1,4 @@
-const { newtx, listunspent, getnewaddress } = require('./btc');
+const { newtx, listUnspent, getnewaddress } = require('./btc');
 const fs = require('fs');
 
 const amount = 2000;
@@ -8,7 +8,7 @@ main();
 async function main() {
 	console.log('Listing UTXOs');
 
-	const s = (await listunspent(0.001, 0, true))
+	const s = (await listUnspent({ minamount: 100000, minconf: 0 }))
 		.filter(u => u.spendable && u.solvable);
 
 	const i = parseInt(process.argv[2]);
