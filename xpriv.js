@@ -151,9 +151,9 @@ function readKey(s, useOldVersion = false) {
     else {
         ver = k.slice(0, 4);
     }
-    depth = k.readUInt8(4);
+    depth = k.readUint8(4);
     fingerprint = k.slice(5, 9);
-    n = k.readUInt32BE(9);
+    n = k.readUint32BE(9);
     chain = k.slice(13, 45);
     key = k.slice(45, 78);
     type = versions.find(v => !v.version.compare(ver));

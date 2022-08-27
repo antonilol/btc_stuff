@@ -11,10 +11,10 @@ import {
 	insertTransaction,
 	removeTransaction,
 	setChain,
-	network
+	network,
+	encodeVarUintLE
 } from './btc';
 import { merkleRoot } from './merkle_tree';
-import { strict as assert } from 'assert';
 import { randomBytes } from 'crypto';
 import { writeFileSync, unlinkSync, copyFileSync, readFileSync, readdirSync } from 'fs';
 import { dirname } from 'path';
@@ -61,31 +61,6 @@ if (args.length > 1) {
 	if (templateFile) {
 		console.log(`Using block template from ${templateFile}`);
 	}
-}
-
-function encodeVarUIntLE(n: number): Buffer {
-	assert(n >= 0 && n < 2 ** 32);
-	let l = 1;
-	let b = '8';
-	let off = 0;
-	let i: number;
-	if (n > 0xffff) {
-		l = 5;
-		b = '32LE';
-		off = 1;
-		i = 0xfe;
-	} else if (n > 0xfc) {
-		l = 3;
-		b = '16LE';
-		off = 1;
-		i = 0xfd;
-	}
-	const buf = Buffer.allocUnsafe(l);
-	buf[`writeUInt${b}`](n, off);
-	if (off) {
-		buf.writeUInt8(i);
-	}
-	return buf;
 }
 
 // BIP141
@@ -180,7 +155,7 @@ async function getWork() {
 		console.log(`Excluded ${removed} SegWit transactions from the block`);
 	}
 
-	const txcount = encodeVarUIntLE(txs.length + 1);
+	const txcount = encodeVarUintLE(txs.length + 1);
 
 	const message = ' github.com/antonilol/btc_stuff >> New signet miner! << ';
 	const address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
@@ -215,10 +190,10 @@ async function getWork() {
 
 		const mRoot = merkleRoot([ coinbase.txid, ...txs.map(x => x.txid) ]);
 
-		block.writeUInt32LE(t.version);
+		block.writeUint32LE(t.version);
 		Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
 		mRoot.copy(block, 36);
-		block.writeUInt32LE(time, 68);
+		block.writeUint32LE(time, 68);
 		Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex')
 			.reverse()
 			.copy(block, 72);
@@ -238,7 +213,7 @@ async function getWork() {
 		]);
 		const scriptWitness = Buffer.alloc(1);
 
-		signetBlockSig = Buffer.concat([ encodeVarUIntLE(scriptSig.length), scriptSig, scriptWitness ]);
+		signetBlockSig = Buffer.concat([ encodeVarUintLE(scriptSig.length), scriptSig, scriptWitness ]);
 	}
 }
 

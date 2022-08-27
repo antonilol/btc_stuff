@@ -19,13 +19,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.consoleTrace = exports.sleep = exports.input = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = void 0;
+exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.testMempoolAccept = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = void 0;
 const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const curve = __importStar(require("tiny-secp256k1"));
 const readline_1 = require("readline");
 const stream_1 = require("stream");
 const ecpair_1 = require("ecpair");
+const assert_1 = require("assert");
 const ECPair = (0, ecpair_1.ECPairFactory)(curve);
 var Uint256;
 (function (Uint256) {
@@ -80,6 +81,9 @@ async function btc(...args) {
             else if (typeof x === 'string') {
                 arg = x;
             }
+            else if (x instanceof bitcoin.Transaction) {
+                arg = x.toHex();
+            }
             else {
                 arg = JSON.stringify(x);
             }
@@ -103,19 +107,19 @@ async function newtx(inputs, outputs, sat) {
     return signAndSend(tx);
 }
 exports.newtx = newtx;
-async function signAndSend(hex) {
-    return send(JSON.parse(await btc('signrawtransactionwithwallet', hex)).hex);
+async function signAndSend(tx) {
+    return send(JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex);
 }
 exports.signAndSend = signAndSend;
 async function fundTransaction(tx) {
-    const res = JSON.parse(await btc('fundrawtransaction', tx.toHex()));
+    const res = JSON.parse(await btc('fundrawtransaction', tx));
     res.tx = bitcoin.Transaction.fromHex(res.hex);
     delete res.hex;
     return res;
 }
 exports.fundTransaction = fundTransaction;
-async function send(hex) {
-    return btc('sendrawtransaction', hex);
+async function send(tx) {
+    return btc('sendrawtransaction', tx);
 }
 exports.send = send;
 /** @deprecated Use listUnspent instead */
@@ -153,8 +157,8 @@ async function getBlockTemplate(template_request = { rules: ['segwit'] }) {
     return template;
 }
 exports.getBlockTemplate = getBlockTemplate;
-async function decodeRawTransaction(txHex) {
-    return JSON.parse(await btc('decoderawtransaction', txHex));
+async function decodeRawTransaction(tx) {
+    return JSON.parse(await btc('decoderawtransaction', tx));
 }
 exports.decodeRawTransaction = decodeRawTransaction;
 async function getTXOut(txid, vout, include_mempool = true) {
@@ -164,6 +168,12 @@ async function getTXOut(txid, vout, include_mempool = true) {
     }
 }
 exports.getTXOut = getTXOut;
+async function testMempoolAccept(txs, maxfeerate) {
+    const arr = Array.isArray(txs);
+    const res = JSON.parse(await btc('testmempoolaccept', arr ? txs : [txs], maxfeerate === undefined ? undefined : toBTCkvB(maxfeerate)));
+    return arr ? res : res[0];
+}
+exports.testMempoolAccept = testMempoolAccept;
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
 async function fundAddress(address, amount) {
     // return fundScript(bitcoin.address.toOutputScript(address, network), amount);
@@ -208,7 +218,7 @@ function ecPrivateMul(a, b) {
 }
 exports.ecPrivateMul = ecPrivateMul;
 function tapLeaf(script) {
-    return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0, script.length]), script]));
+    return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0]), encodeVarUintLE(script.length), script]));
 }
 exports.tapLeaf = tapLeaf;
 function tapBranch(branch1, branch2) {
@@ -248,6 +258,63 @@ function setChain(c) {
 }
 exports.setChain = setChain;
 // Utils
+function encodeVarUintLE(n) {
+    if (typeof n === 'number') {
+        (0, assert_1.strict)(n >= 0 && n <= Number.MAX_SAFE_INTEGER && n % 1 === 0);
+        n = BigInt(n);
+    }
+    else {
+        (0, assert_1.strict)(n >= 0n && n <= 0xffffffffffffffffn);
+    }
+    if (n > 0xffffffffn) {
+        const buf = Buffer.allocUnsafe(9);
+        buf.writeUint8(0xff);
+        buf.writeBigUint64LE(n, 1);
+        return buf;
+    }
+    else if (n > 0xffffn) {
+        const buf = Buffer.allocUnsafe(5);
+        buf.writeUint8(0xfe);
+        buf.writeUint32LE(Number(n), 1);
+        return buf;
+    }
+    else if (n > 0xfcn) {
+        const buf = Buffer.allocUnsafe(3);
+        buf.writeUint8(0xfd);
+        buf.writeUint16LE(Number(n), 1);
+        return buf;
+    }
+    else {
+        const buf = Buffer.allocUnsafe(1);
+        buf.writeUint8(Number(n));
+        return buf;
+    }
+}
+exports.encodeVarUintLE = encodeVarUintLE;
+function decodeVarUintLE(buf, bigint) {
+    let n;
+    if (buf[0] === 0xff && buf.length >= 9) {
+        const n = buf.readBigUint64LE(1);
+        if (bigint) {
+            return n;
+        }
+        else {
+            (0, assert_1.strict)(n <= Number.MAX_SAFE_INTEGER);
+            return Number(n);
+        }
+    }
+    else if (buf[0] === 0xfe && buf.length >= 5) {
+        n = buf.readUint32LE(1);
+    }
+    else if (buf[0] === 0xfd && buf.length >= 3) {
+        n = buf.readUint16LE(1);
+    }
+    else {
+        n = buf.readUint8();
+    }
+    return bigint ? BigInt(n) : n;
+}
+exports.decodeVarUintLE = decodeVarUintLE;
 // remove a transaction from a templateFile
 // removes all dependendencies
 // subtracts fee of removed transactions from coinbasevalue
@@ -324,6 +391,16 @@ function toBTC(satAmount) {
     return parseFloat((satAmount * 1e-8).toFixed(8));
 }
 exports.toBTC = toBTC;
+/** Converts a fee rate in BTC/kvB to sat/vB */
+function toSatvB(btckvB) {
+    return toSat(btckvB) / 1000;
+}
+exports.toSatvB = toSatvB;
+/** Converts a fee rate in sat/vB to BTC/kvB */
+function toBTCkvB(satvB) {
+    return toBTC(Math.round(satvB * 1000));
+}
+exports.toBTCkvB = toBTCkvB;
 async function input(q, hide = false) {
     let active = false;
     const rl = (0, readline_1.createInterface)({

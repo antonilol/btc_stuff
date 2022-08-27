@@ -52,11 +52,11 @@ async function main() {
 	const buf = tx.toBuffer();
 	const off = 45 + sig.length; // nonce offset
 	const target = 0; // 2 ** 32 allows all hashes, 0 gives the hash 8 zeros (looks like a difficulty 1 block)
-	
+
 	for (var i = 0; i < 2 ** 32; i++) {
-		buf.writeUInt32BE(i, off);
+		buf.writeUint32BE(i, off);
 		const h = bitcoin.crypto.hash256(buf);
-		if (h.readUInt32LE(28) <= target) {
+		if (h.readUint32LE(28) <= target) {
 			console.log(await send(buf.toString('hex')));
 			break;
 		}

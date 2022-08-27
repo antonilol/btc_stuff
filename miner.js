@@ -23,7 +23,6 @@ const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const btc_1 = require("./btc");
 const merkle_tree_1 = require("./merkle_tree");
-const assert_1 = require("assert");
 const crypto_1 = require("crypto");
 const fs_1 = require("fs");
 const path_1 = require("path");
@@ -58,31 +57,6 @@ if (args.length > 1) {
     if (templateFile) {
         console.log(`Using block template from ${templateFile}`);
     }
-}
-function encodeVarUIntLE(n) {
-    (0, assert_1.strict)(n >= 0 && n < 2 ** 32);
-    let l = 1;
-    let b = '8';
-    let off = 0;
-    let i;
-    if (n > 0xffff) {
-        l = 5;
-        b = '32LE';
-        off = 1;
-        i = 0xfe;
-    }
-    else if (n > 0xfc) {
-        l = 3;
-        b = '16LE';
-        off = 1;
-        i = 0xfd;
-    }
-    const buf = Buffer.allocUnsafe(l);
-    buf[`writeUInt${b}`](n, off);
-    if (off) {
-        buf.writeUInt8(i);
-    }
-    return buf;
 }
 // BIP141
 const wCommitHeader = Buffer.from('aa21a9ed', 'hex');
@@ -149,7 +123,7 @@ async function getWork() {
         console.log(`SegWit is disabled`);
         console.log(`Excluded ${removed} SegWit transactions from the block`);
     }
-    const txcount = encodeVarUIntLE(txs.length + 1);
+    const txcount = (0, btc_1.encodeVarUintLE)(txs.length + 1);
     const message = ' github.com/antonilol/btc_stuff >> New signet miner! << ';
     const address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
     if (!address) {
@@ -175,10 +149,10 @@ async function getWork() {
             o += data.length;
         });
         const mRoot = (0, merkle_tree_1.merkleRoot)([coinbase.txid, ...txs.map(x => x.txid)]);
-        block.writeUInt32LE(t.version);
+        block.writeUint32LE(t.version);
         Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
         mRoot.copy(block, 36);
-        block.writeUInt32LE(time, 68);
+        block.writeUint32LE(time, 68);
         Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex')
             .reverse()
             .copy(block, 72);
@@ -191,7 +165,7 @@ async function getWork() {
             bitcoin.script.signature.encode(ECPair.fromWIF(await (0, btc_1.btc)('dumpprivkey', 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3'), btc_1.network).sign(sighash), bitcoin.Transaction.SIGHASH_ALL)
         ]);
         const scriptWitness = Buffer.alloc(1);
-        signetBlockSig = Buffer.concat([encodeVarUIntLE(scriptSig.length), scriptSig, scriptWitness]);
+        signetBlockSig = Buffer.concat([(0, btc_1.encodeVarUintLE)(scriptSig.length), scriptSig, scriptWitness]);
     }
 }
 main();

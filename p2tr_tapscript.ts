@@ -42,7 +42,7 @@ const branch = tapBranch(leaf1, leaf2);
 
 const tr = createTaprootOutput(internalKey.publicKey, branch);
 
-const fee_sat = 150;
+const fee_sat = 162;
 const input_sat = 1000;
 
 console.log(tr.address);

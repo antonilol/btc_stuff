@@ -4,6 +4,7 @@ import * as curve from 'tiny-secp256k1';
 import { createInterface } from 'readline';
 import { Writable } from 'stream';
 import { ECPairFactory, ECPairInterface } from 'ecpair';
+import { strict as assert } from 'assert';
 
 const ECPair = ECPairFactory(curve);
 
@@ -171,6 +172,8 @@ export interface ListUnspentArgs {
 	minimumSumAmount?: number;
 }
 
+export type TransactionType = string | Buffer | bitcoin.Transaction;
+
 export type Chain = 'main' | 'test' | 'regtest' | 'signet';
 
 export const networks: { [name in Chain]: bitcoin.networks.Network } = {
@@ -183,7 +186,7 @@ export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 let chain: Chain = 'test';
 export let network = networks[chain];
 
-export async function btc(...args: (string | Buffer | number | {})[]): Promise<string> {
+export async function btc(...args: (string | Buffer | number | {} | TransactionType)[]): Promise<string> {
 	return new Promise((r, e) => {
 		const cmdargs = [ `-chain=${chain}`, '-stdin' ];
 		while (args.length && typeof args[0] === 'string' && args[0].startsWith('-')) {
@@ -221,6 +224,8 @@ export async function btc(...args: (string | Buffer | number | {})[]): Promise<s
 						arg = x.toString();
 					} else if (typeof x === 'string') {
 						arg = x;
+					} else if (x instanceof bitcoin.Transaction) {
+						arg = x.toHex();
 					} else {
 						arg = JSON.stringify(x);
 					}
@@ -249,14 +254,14 @@ export async function newtx(
 	return signAndSend(tx);
 }
 
-export async function signAndSend(hex: string): Promise<string> {
-	return send(JSON.parse(await btc('signrawtransactionwithwallet', hex)).hex);
+export async function signAndSend(tx: TransactionType): Promise<string> {
+	return send(JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex);
 }
 
 export async function fundTransaction(
-	tx: bitcoin.Transaction
+	tx: TransactionType
 ): Promise<{ tx: bitcoin.Transaction; fee: number; changepos: number }> {
-	const res = JSON.parse(await btc('fundrawtransaction', tx.toHex()));
+	const res = JSON.parse(await btc('fundrawtransaction', tx));
 
 	res.tx = bitcoin.Transaction.fromHex(res.hex);
 	delete res.hex;
@@ -264,8 +269,8 @@ export async function fundTransaction(
 	return res;
 }
 
-export async function send(hex: string): Promise<string> {
-	return btc('sendrawtransaction', hex);
+export async function send(tx: TransactionType): Promise<string> {
+	return btc('sendrawtransaction', tx);
 }
 
 /** @deprecated Use listUnspent instead */
@@ -307,8 +312,8 @@ export async function getBlockTemplate(
 	return template;
 }
 
-export async function decodeRawTransaction(txHex: string | Buffer): Promise<RawTransaction> {
-	return JSON.parse(await btc('decoderawtransaction', txHex));
+export async function decodeRawTransaction(tx: TransactionType): Promise<RawTransaction> {
+	return JSON.parse(await btc('decoderawtransaction', tx));
 }
 
 export async function getTXOut(txid: string | Buffer, vout: number, include_mempool = true): Promise<TXOut | void> {
@@ -316,6 +321,49 @@ export async function getTXOut(txid: string | Buffer, vout: number, include_memp
 	if (txout) {
 		return JSON.parse(txout);
 	}
+}
+
+namespace testMempoolAccept {
+	interface Transaction {
+		txid: string;
+		wtxid: string;
+		allowed: boolean;
+	}
+
+	interface AllowedTransaction extends Transaction {
+		allowed: true;
+		vsize: number;
+		fees: { base: number };
+	}
+
+	interface RejectedTransaction extends Transaction {
+		allowed: false;
+		'reject-reason': string;
+	}
+
+	interface RejectedPackageTransaction extends RejectedTransaction {
+		'package-error'?: string;
+	}
+
+	export type Output = AllowedTransaction | RejectedTransaction;
+	export type PackageOutput = (AllowedTransaction | RejectedPackageTransaction)[];
+}
+
+/** note: maxfeerate is in sat/vB */
+export async function testMempoolAccept(tx: TransactionType, maxfee?: number): Promise<testMempoolAccept.Output>;
+export async function testMempoolAccept(
+	txs: TransactionType[],
+	maxfee?: number
+): Promise<testMempoolAccept.PackageOutput>;
+export async function testMempoolAccept(
+	txs: TransactionType | TransactionType[],
+	maxfeerate?: number
+): Promise<testMempoolAccept.Output | testMempoolAccept.PackageOutput> {
+	const arr = Array.isArray(txs);
+	const res = JSON.parse(
+		await btc('testmempoolaccept', arr ? txs : [ txs ], maxfeerate === undefined ? undefined : toBTCkvB(maxfeerate))
+	);
+	return arr ? res : res[0];
 }
 
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
@@ -369,7 +417,10 @@ export function ecPrivateMul(a: Uint8Array, b: Uint8Array): Buffer {
 }
 
 export function tapLeaf(script: Buffer): Buffer {
-	return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([ Buffer.from([ 0xc0, script.length ]), script ]));
+	return bitcoin.crypto.taggedHash(
+		'TapLeaf',
+		Buffer.concat([ Buffer.from([ 0xc0 ]), encodeVarUintLE(script.length), script ])
+	);
 }
 
 export function tapBranch(branch1: Buffer, branch2: Buffer): Buffer {
@@ -415,6 +466,57 @@ export function setChain(c: Chain): void {
 }
 
 // Utils
+
+export function encodeVarUintLE(n: bigint | number): Buffer {
+	if (typeof n === 'number') {
+		assert(n >= 0 && n <= Number.MAX_SAFE_INTEGER && n % 1 === 0);
+		n = BigInt(n);
+	} else {
+		assert(n >= 0n && n <= 0xffffffffffffffffn);
+	}
+	if (n > 0xffffffffn) {
+		const buf = Buffer.allocUnsafe(9);
+		buf.writeUint8(0xff);
+		buf.writeBigUint64LE(n, 1);
+		return buf;
+	} else if (n > 0xffffn) {
+		const buf = Buffer.allocUnsafe(5);
+		buf.writeUint8(0xfe);
+		buf.writeUint32LE(Number(n), 1);
+		return buf;
+	} else if (n > 0xfcn) {
+		const buf = Buffer.allocUnsafe(3);
+		buf.writeUint8(0xfd);
+		buf.writeUint16LE(Number(n), 1);
+		return buf;
+	} else {
+		const buf = Buffer.allocUnsafe(1);
+		buf.writeUint8(Number(n));
+		return buf;
+	}
+}
+
+export function decodeVarUintLE(buf: Buffer, bigint: true): bigint;
+export function decodeVarUintLE(buf: Buffer, bigint: false): number;
+export function decodeVarUintLE(buf: Buffer, bigint: boolean): bigint | number {
+	let n: number;
+	if (buf[0] === 0xff && buf.length >= 9) {
+		const n = buf.readBigUint64LE(1);
+		if (bigint) {
+			return n;
+		} else {
+			assert(n <= Number.MAX_SAFE_INTEGER);
+			return Number(n);
+		}
+	} else if (buf[0] === 0xfe && buf.length >= 5) {
+		n = buf.readUint32LE(1);
+	} else if (buf[0] === 0xfd && buf.length >= 3) {
+		n = buf.readUint16LE(1);
+	} else {
+		n = buf.readUint8();
+	}
+	return bigint ? BigInt(n) : n;
+}
 
 // remove a transaction from a templateFile
 // removes all dependendencies
@@ -501,6 +603,16 @@ export function toSat(btcAmount: number): number {
 export function toBTC(satAmount: number): number {
 	// prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
 	return parseFloat((satAmount * 1e-8).toFixed(8));
+}
+
+/** Converts a fee rate in BTC/kvB to sat/vB */
+export function toSatvB(btckvB: number): number {
+	return toSat(btckvB) / 1000;
+}
+
+/** Converts a fee rate in sat/vB to BTC/kvB */
+export function toBTCkvB(satvB: number): number {
+	return toBTC(Math.round(satvB * 1000));
 }
 
 export async function input(q: string, hide = false): Promise<string> {

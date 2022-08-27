@@ -42,7 +42,7 @@ const leaf1 = (0, btc_1.tapLeaf)(leaf1script);
 const leaf2 = Buffer.alloc(32); // all zeros
 const branch = (0, btc_1.tapBranch)(leaf1, leaf2);
 const tr = (0, btc_1.createTaprootOutput)(internalKey.publicKey, branch);
-const fee_sat = 150;
+const fee_sat = 162;
 const input_sat = 1000;
 console.log(tr.address);
 (0, btc_1.fundAddress)(tr.address, input_sat).then(async (outpoint) => {
