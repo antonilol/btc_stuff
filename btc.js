@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.testMempoolAccept = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = void 0;
+exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getChainTips = exports.testMempoolAccept = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
 const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const curve = __importStar(require("tiny-secp256k1"));
@@ -27,6 +27,8 @@ const readline_1 = require("readline");
 const stream_1 = require("stream");
 const ecpair_1 = require("ecpair");
 const assert_1 = require("assert");
+var descriptors_1 = require("./descriptors");
+Object.defineProperty(exports, "descsumCreate", { enumerable: true, get: function () { return descriptors_1.descsumCreate; } });
 const ECPair = (0, ecpair_1.ECPairFactory)(curve);
 var Uint256;
 (function (Uint256) {
@@ -141,10 +143,16 @@ async function listUnspent(args = {}, sats = true) {
     const query_options = {};
     for (const k in args) {
         if (['minimumAmount', 'maximumAmount', 'maximumCount', 'minimumSumAmount'].includes(k)) {
-            query_options[k] = sats && k.endsWith('Amount') ? toSat(args[k]) : args[k];
+            query_options[k] = sats && k.endsWith('Amount') ? toBTC(args[k]) : args[k];
         }
     }
-    return JSON.parse(await btc('listunspent', minconf, maxconf, addresses, include_unsafe, query_options));
+    const utxos = JSON.parse(await btc('listunspent', minconf, maxconf, addresses, include_unsafe, query_options));
+    if (sats) {
+        for (let i = 0; i < utxos.length; i++) {
+            utxos[i].amount = toSat(utxos[i].amount);
+        }
+    }
+    return utxos;
 }
 exports.listUnspent = listUnspent;
 async function getnewaddress() {
@@ -174,6 +182,10 @@ async function testMempoolAccept(txs, maxfeerate) {
     return arr ? res : res[0];
 }
 exports.testMempoolAccept = testMempoolAccept;
+async function getChainTips() {
+    return JSON.parse(await btc('getchaintips'));
+}
+exports.getChainTips = getChainTips;
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
 async function fundAddress(address, amount) {
     // return fundScript(bitcoin.address.toOutputScript(address, network), amount);

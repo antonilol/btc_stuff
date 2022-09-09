@@ -6,6 +6,8 @@ import { Writable } from 'stream';
 import { ECPairFactory, ECPairInterface } from 'ecpair';
 import { strict as assert } from 'assert';
 
+export { descsumCreate } from './descriptors';
+
 const ECPair = ECPairFactory(curve);
 
 export namespace Uint256 {
@@ -294,10 +296,18 @@ export async function listUnspent(args: ListUnspentArgs = {}, sats = true): Prom
 	const query_options = {};
 	for (const k in args) {
 		if ([ 'minimumAmount', 'maximumAmount', 'maximumCount', 'minimumSumAmount' ].includes(k)) {
-			query_options[k] = sats && k.endsWith('Amount') ? toSat(args[k]) : args[k];
+			query_options[k] = sats && k.endsWith('Amount') ? toBTC(args[k]) : args[k];
 		}
 	}
-	return JSON.parse(await btc('listunspent', minconf, maxconf, addresses, include_unsafe, query_options));
+	const utxos: UTXO[] = JSON.parse(
+		await btc('listunspent', minconf, maxconf, addresses, include_unsafe, query_options)
+	);
+	if (sats) {
+		for (let i = 0; i < utxos.length; i++) {
+			utxos[i].amount = toSat(utxos[i].amount);
+		}
+	}
+	return utxos;
 }
 
 export async function getnewaddress(): Promise<string> {
@@ -323,34 +333,35 @@ export async function getTXOut(txid: string | Buffer, vout: number, include_memp
 	}
 }
 
-namespace testMempoolAccept {
+export namespace testMempoolAccept {
 	interface Transaction {
 		txid: string;
 		wtxid: string;
 		allowed: boolean;
 	}
 
-	interface AllowedTransaction extends Transaction {
+	export interface AllowedTransaction extends Transaction {
 		allowed: true;
 		vsize: number;
 		fees: { base: number };
 	}
 
-	interface RejectedTransaction extends Transaction {
+	export interface RejectedTransaction extends Transaction {
 		allowed: false;
 		'reject-reason': string;
 	}
 
-	interface RejectedPackageTransaction extends RejectedTransaction {
+	export interface RejectedPackageTransaction extends RejectedTransaction {
 		'package-error'?: string;
 	}
 
-	export type Output = AllowedTransaction | RejectedTransaction;
+	export type SingleOutput = AllowedTransaction | RejectedTransaction;
 	export type PackageOutput = (AllowedTransaction | RejectedPackageTransaction)[];
+	export type Output = SingleOutput | PackageOutput;
 }
 
 /** note: maxfeerate is in sat/vB */
-export async function testMempoolAccept(tx: TransactionType, maxfee?: number): Promise<testMempoolAccept.Output>;
+export async function testMempoolAccept(tx: TransactionType, maxfee?: number): Promise<testMempoolAccept.SingleOutput>;
 export async function testMempoolAccept(
 	txs: TransactionType[],
 	maxfee?: number
@@ -358,12 +369,36 @@ export async function testMempoolAccept(
 export async function testMempoolAccept(
 	txs: TransactionType | TransactionType[],
 	maxfeerate?: number
-): Promise<testMempoolAccept.Output | testMempoolAccept.PackageOutput> {
+): Promise<testMempoolAccept.Output> {
 	const arr = Array.isArray(txs);
 	const res = JSON.parse(
 		await btc('testmempoolaccept', arr ? txs : [ txs ], maxfeerate === undefined ? undefined : toBTCkvB(maxfeerate))
 	);
 	return arr ? res : res[0];
+}
+
+export namespace getChainTips {
+	interface ChainTip {
+		height: number;
+		hash: string;
+	}
+
+	export interface ActiveChainTip extends ChainTip {
+		branchlen: 0;
+		status: 'active';
+	}
+
+	export interface InactiveChainTip extends ChainTip {
+		branchlen: number;
+		status: 'invalid' | 'headers-only' | 'valid-headers' | 'valid-fork' | 'unknown';
+	}
+
+	// export type Output = [ ActiveChainTip, ...InactiveChainTip[] ];
+	export type Output = (ActiveChainTip | InactiveChainTip)[];
+}
+
+export async function getChainTips(): Promise<getChainTips.Output> {
+	return JSON.parse(await btc('getchaintips'));
 }
 
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
