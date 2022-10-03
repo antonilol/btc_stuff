@@ -47,8 +47,6 @@ const versions: Version[] = [
 	{ network: 'testnet', version: Buffer.from('02575048', 'hex'), private: true, script: 'p2wsh' }
 ];
 
-main();
-
 let i: string,
 	k: Buffer,
 	ver: Buffer,
@@ -219,3 +217,5 @@ Network     Key type     Script type     Key`);
 			);
 		});
 }
+
+main();

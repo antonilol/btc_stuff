@@ -142,7 +142,10 @@ const opcodes = {
 
 	// aliases
 	OP_CLTV: 0xb1,
-	OP_CSV: 0xb2
+	OP_CSV: 0xb2,
+
+	// internal opcodes (not used in bitcoin core)
+	INTERNAL_NOT: -1
 };
 
 /** Disabled because of CVE-2010-5137 */
@@ -164,7 +167,16 @@ const disabledOpcodes = [
 	opcodes.OP_RSHIFT
 ];
 
-function getOpcode(op: number): string | void {
+const pushdataLength = {
+	[opcodes.OP_PUSHDATA1]: 1,
+	[opcodes.OP_PUSHDATA2]: 2,
+	[opcodes.OP_PUSHDATA4]: 4
+};
+
+function opcodeName(op: number): string | void {
+	if (op < 0) {
+		return;
+	}
 	const o = Object.entries(opcodes).find(x => x[1] === op);
 	if (o) {
 		return o[0];

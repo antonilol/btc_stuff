@@ -99,11 +99,22 @@ exports.btc = btc;
 // sign, create and send new transaction
 async function newtx(inputs, outputs, sat) {
     if (sat) {
-        Object.keys(outputs).forEach(k => {
-            if (k !== 'data') {
-                outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+        if (Array.isArray(outputs)) {
+            for (const outs of outputs) {
+                Object.keys(outs).forEach(k => {
+                    if (k !== 'data') {
+                        outs[k] = toBTC(outs[k]);
+                    }
+                });
             }
-        });
+        }
+        else {
+            Object.keys(outputs).forEach(k => {
+                if (k !== 'data') {
+                    outputs[k] = toBTC(outputs[k]);
+                }
+            });
+        }
     }
     const tx = await btc('createrawtransaction', inputs, outputs);
     return signAndSend(tx);
@@ -178,7 +189,9 @@ async function getTXOut(txid, vout, include_mempool = true) {
 exports.getTXOut = getTXOut;
 async function testMempoolAccept(txs, maxfeerate) {
     const arr = Array.isArray(txs);
-    const res = JSON.parse(await btc('testmempoolaccept', arr ? txs : [txs], maxfeerate === undefined ? undefined : toBTCkvB(maxfeerate)));
+    const res = JSON.parse(await (maxfeerate === undefined
+        ? btc('testmempoolaccept', arr ? txs : [txs])
+        : btc('testmempoolaccept', arr ? txs : [txs], toBTCkvB(maxfeerate))));
     return arr ? res : res[0];
 }
 exports.testMempoolAccept = testMempoolAccept;
@@ -457,7 +470,7 @@ exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(methodNam
                 throw new Error();
             }
             catch (e) {
-                if (typeof e.stack === 'string') {
+                if (e instanceof Error && e.stack) {
                     let isFirst = true;
                     for (const line of e.stack.split('\n')) {
                         const matches = line.match(/^\s+at\s+(.*)/);

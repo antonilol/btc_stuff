@@ -242,15 +242,25 @@ export async function btc(...args: (string | Buffer | number | {} | TransactionT
 // sign, create and send new transaction
 export async function newtx(
 	inputs: RawTransactionInput[],
-	outputs: RawTransactionOutput[],
+	outputs: RawTransactionOutput | RawTransactionOutput[],
 	sat: boolean
 ): Promise<string> {
 	if (sat) {
-		Object.keys(outputs).forEach(k => {
-			if (k !== 'data') {
-				outputs[k] = parseFloat((outputs[k] * 1e-8).toFixed(8));
+		if (Array.isArray(outputs)) {
+			for (const outs of outputs) {
+				Object.keys(outs).forEach(k => {
+					if (k !== 'data') {
+						outs[k] = toBTC(outs[k]);
+					}
+				});
 			}
-		});
+		} else {
+			Object.keys(outputs).forEach(k => {
+				if (k !== 'data') {
+					outputs[k] = toBTC(outputs[k]);
+				}
+			});
+		}
 	}
 	const tx = await btc('createrawtransaction', inputs, outputs);
 	return signAndSend(tx);
@@ -372,7 +382,9 @@ export async function testMempoolAccept(
 ): Promise<testMempoolAccept.Output> {
 	const arr = Array.isArray(txs);
 	const res = JSON.parse(
-		await btc('testmempoolaccept', arr ? txs : [ txs ], maxfeerate === undefined ? undefined : toBTCkvB(maxfeerate))
+		await (maxfeerate === undefined
+			? btc('testmempoolaccept', arr ? txs : [ txs ])
+			: btc('testmempoolaccept', arr ? txs : [ txs ], toBTCkvB(maxfeerate)))
 	);
 	return arr ? res : res[0];
 }
@@ -428,7 +440,7 @@ export function validNetworks(address: string): { [name in 'bitcoin' | 'testnet'
 export const OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
 
 const ONE = Uint256.toBuffer(1n);
-const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n)));
+const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n))!);
 
 export function negateIfOddPubkey(d: Uint8Array): Buffer {
 	if (curve.pointFromScalar(d, true)[0] == 3) {
@@ -567,7 +579,7 @@ export function removeTransaction(template: BlockTemplate, txid: string): BlockT
 	const removed: BlockTemplateTX[] = [];
 
 	while (toRemove.length) {
-		const tx = toRemove.shift();
+		const tx = toRemove.shift()!;
 		toRemove.push(...tx.TXdepends);
 		removed.push(...txs.splice(txs.indexOf(tx), 1));
 	}
@@ -701,7 +713,7 @@ export const consoleTrace = Object.fromEntries(
 				try {
 					throw new Error();
 				} catch (e) {
-					if (typeof e.stack === 'string') {
+					if (e instanceof Error && e.stack) {
 						let isFirst = true;
 						for (const line of e.stack.split('\n')) {
 							const matches = line.match(/^\s+at\s+(.*)/);

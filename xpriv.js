@@ -59,7 +59,6 @@ const versions = [
     { network: 'testnet', version: Buffer.from('02575483', 'hex'), private: false, script: 'p2wsh' },
     { network: 'testnet', version: Buffer.from('02575048', 'hex'), private: true, script: 'p2wsh' }
 ];
-main();
 let i, k, ver, depth, fingerprint, n, chain, key, type, bip32key;
 async function main() {
     while (true) {
@@ -209,3 +208,4 @@ Network     Key type     Script type     Key`);
             color(RESET));
     });
 }
+main();
