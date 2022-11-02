@@ -1,6 +1,8 @@
 addresses.js linguist-generated
 btc.js linguist-generated
 descriptors.js linguist-generated
+lightning/channeldb_reader.js linguist-generated
+lightning/lndforcecloser.js linguist-generated
 merkle_tree.js linguist-generated
 miner.js linguist-generated
 p2tr_ptlc.js linguist-generated

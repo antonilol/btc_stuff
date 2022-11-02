@@ -2,6 +2,9 @@ cpuminer
 node_modules
 mempool
 
+# chantools
+results
+
 *.json
 !package.json
 !package-lock.json

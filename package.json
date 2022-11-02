@@ -1,7 +1,7 @@
 {
   "name": "btc_stuff",
   "scripts": {
-    "build": "ls *.ts scriptanalyzer/index.js | sed 's/ts$/js linguist-generated/' > .gitattributes; tsc; tsc -p scriptanalyzer",
+    "build": "ls *.ts scriptanalyzer/index.js lightning/*.ts | sed 's/ts$/js linguist-generated/' > .gitattributes; tsc; tsc -p scriptanalyzer",
     "format": "prettier --write *.ts */*.ts",
     "lint": "eslint --fix --max-warnings 0 *.ts */*.ts",
     "precommit": "npm run format && npm run lint && npm run build"
