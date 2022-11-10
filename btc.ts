@@ -8,6 +8,15 @@ import { strict as assert } from 'assert';
 
 export { descsumCreate } from './descriptors';
 
+type ObjectKey = string | number | symbol;
+type ObjectKeyString<K extends ObjectKey> = K extends number ? `${number}` : K extends Symbol ? never : K;
+
+declare global {
+	interface ObjectConstructor {
+		entries<K extends ObjectKey, T>(o: { [s in K]: T } | ArrayLike<T>): [ObjectKeyString<K>, T][];
+	}
+}
+
 const ECPair = ECPairFactory(curve);
 
 export namespace Uint256 {
@@ -379,6 +388,10 @@ export async function testMempoolAccept(
 export async function testMempoolAccept(
 	txs: TransactionType | TransactionType[],
 	maxfeerate?: number
+): Promise<testMempoolAccept.Output>;
+export async function testMempoolAccept(
+	txs: TransactionType | TransactionType[],
+	maxfeerate?: number
 ): Promise<testMempoolAccept.Output> {
 	const arr = Array.isArray(txs);
 	const res = JSON.parse(
@@ -413,6 +426,28 @@ export async function getChainTips(): Promise<getChainTips.Output> {
 	return JSON.parse(await btc('getchaintips'));
 }
 
+export namespace getIndexInfo {
+	type BlockFilterIndex = 'basic';
+
+	export type Index = `${'tx' | 'coinstats' | `${BlockFilterIndex} block filter `}index`;
+
+	export interface IndexInfo {
+		synced: boolean;
+		best_block_height: number;
+	}
+
+	export type Output<T extends Index = Index> = {
+		[k in T]?: IndexInfo;
+	};
+}
+
+export async function getIndexInfo(): Promise<getIndexInfo.Output>;
+export async function getIndexInfo(index: getIndexInfo.Index): Promise<getIndexInfo.Output<typeof index>>;
+export async function getIndexInfo(index?: getIndexInfo.Index): Promise<getIndexInfo.Output>;
+export async function getIndexInfo(index?: getIndexInfo.Index): Promise<getIndexInfo.Output> {
+	return JSON.parse(await btc('getindexinfo', index || ''));
+}
+
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
 
 export async function fundAddress(address: string, amount: number): Promise<OutputPoint> {
@@ -425,7 +460,7 @@ export async function fundAddress(address: string, amount: number): Promise<Outp
 }
 
 export function validNetworks(address: string): { [name in 'bitcoin' | 'testnet' | 'regtest']?: bitcoin.Network } {
-	const output = {};
+	const output: { [name in 'bitcoin' | 'testnet' | 'regtest']?: bitcoin.Network } = {};
 
 	for (const net of Object.entries(bitcoin.networks)) {
 		try {
@@ -442,9 +477,21 @@ export const OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.co
 const ONE = Uint256.toBuffer(1n);
 const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n))!);
 
-export function negateIfOddPubkey(d: Uint8Array): Buffer {
-	if (curve.pointFromScalar(d, true)[0] == 3) {
-		return Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, d), ONE));
+export function negateIfOddPubkey(d: Uint8Array): Buffer | undefined {
+	const pub = curve.pointFromScalar(d, true);
+	if (!pub) {
+		return;
+	}
+	if (pub[0] == 3) {
+		const d1 = curve.privateSub(N_LESS_1, d);
+		if (!d1) {
+			return;
+		}
+		const d2 = curve.privateAdd(d1, ONE);
+		if (!d2) {
+			return;
+		}
+		return Buffer.from(d2);
 	}
 	return Buffer.from(d);
 }
@@ -481,23 +528,34 @@ export function tapTweak(pubkey: Buffer, root?: Buffer): Buffer {
 	return bitcoin.crypto.taggedHash('TapTweak', root ? Buffer.concat([ pubkey.slice(-32), root ]) : pubkey.slice(-32));
 }
 
-export function bip86(ecpair: ECPairInterface): ECPairInterface {
+export function bip86(ecpair: ECPairInterface): ECPairInterface | undefined {
 	const tweak = tapTweak(ecpair.publicKey);
 	const opts = {
 		compressed: ecpair.compressed,
 		network: ecpair.network
 	};
 	if (ecpair.privateKey) {
-		return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(ecpair.privateKey, tweak)), opts);
+		const priv = curve.privateAdd(ecpair.privateKey, tweak);
+		if (!priv) {
+			return;
+		}
+		return ECPair.fromPrivateKey(Buffer.from(priv), opts);
 	}
-	return ECPair.fromPublicKey(Buffer.from(curve.pointAddScalar(ecpair.publicKey, tweak)), opts);
+	const pub = curve.pointAddScalar(ecpair.publicKey, tweak);
+	if (!pub) {
+		return;
+	}
+	return ECPair.fromPublicKey(Buffer.from(pub), opts);
 }
 
 export function createTaprootOutput(
 	pubkey: Buffer,
 	root?: Buffer
-): { key: Buffer; parity: 0 | 1; scriptPubKey: Buffer; address: string } {
+): { key: Buffer; parity: 0 | 1; scriptPubKey: Buffer; address: string } | undefined {
 	const tweaked = curve.pointAddScalar(pubkey, tapTweak(pubkey, root));
+	if (!tweaked) {
+		return;
+	}
 	const key = Buffer.from(tweaked).slice(-32);
 	return {
 		key,
@@ -545,6 +603,7 @@ export function encodeVarUintLE(n: bigint | number): Buffer {
 
 export function decodeVarUintLE(buf: Buffer, bigint: true): bigint;
 export function decodeVarUintLE(buf: Buffer, bigint: false): number;
+export function decodeVarUintLE(buf: Buffer, bigint: boolean): bigint | number;
 export function decodeVarUintLE(buf: Buffer, bigint: boolean): bigint | number {
 	let n: number;
 	if (buf[0] === 0xff && buf.length >= 9) {
@@ -584,7 +643,7 @@ export function removeTransaction(template: BlockTemplate, txid: string): BlockT
 		removed.push(...txs.splice(txs.indexOf(tx), 1));
 	}
 
-	template.coinbasevalue -= removed.reduce((v, x) => v + x.fee, 0);
+	template.coinbasevalue -= removed.reduce((v, x) => v + (x.fee || 0), 0);
 
 	updateNumberDepends(template);
 
@@ -632,7 +691,7 @@ export function bech32toScriptPubKey(a: string): Buffer {
 }
 
 export function cloneBuf(buf: Buffer): Buffer {
-	return Uint8Array.prototype.slice.call(buf);
+	return Buffer.from(buf);
 }
 
 export function txidToString(txid: string | Buffer): string {
@@ -704,7 +763,7 @@ export async function sleep(ms: number): Promise<void> {
 
 // from https://stackoverflow.com/a/47296370/13800918, edited
 export const consoleTrace = Object.fromEntries(
-	[ 'log', 'warn', 'error' ].map(methodName => {
+	([ 'log', 'warn', 'error' ] as const).map(methodName => {
 		return [
 			methodName,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getChainTips = exports.testMempoolAccept = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
+exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
 const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const curve = __importStar(require("tiny-secp256k1"));
@@ -199,6 +199,10 @@ async function getChainTips() {
     return JSON.parse(await btc('getchaintips'));
 }
 exports.getChainTips = getChainTips;
+async function getIndexInfo(index) {
+    return JSON.parse(await btc('getindexinfo', index || ''));
+}
+exports.getIndexInfo = getIndexInfo;
 // export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
 async function fundAddress(address, amount) {
     // return fundScript(bitcoin.address.toOutputScript(address, network), amount);
@@ -223,8 +227,20 @@ exports.OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bit
 const ONE = Uint256.toBuffer(1n);
 const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n)));
 function negateIfOddPubkey(d) {
-    if (curve.pointFromScalar(d, true)[0] == 3) {
-        return Buffer.from(curve.privateAdd(curve.privateSub(N_LESS_1, d), ONE));
+    const pub = curve.pointFromScalar(d, true);
+    if (!pub) {
+        return;
+    }
+    if (pub[0] == 3) {
+        const d1 = curve.privateSub(N_LESS_1, d);
+        if (!d1) {
+            return;
+        }
+        const d2 = curve.privateAdd(d1, ONE);
+        if (!d2) {
+            return;
+        }
+        return Buffer.from(d2);
     }
     return Buffer.from(d);
 }
@@ -261,13 +277,24 @@ function bip86(ecpair) {
         network: ecpair.network
     };
     if (ecpair.privateKey) {
-        return ECPair.fromPrivateKey(Buffer.from(curve.privateAdd(ecpair.privateKey, tweak)), opts);
+        const priv = curve.privateAdd(ecpair.privateKey, tweak);
+        if (!priv) {
+            return;
+        }
+        return ECPair.fromPrivateKey(Buffer.from(priv), opts);
     }
-    return ECPair.fromPublicKey(Buffer.from(curve.pointAddScalar(ecpair.publicKey, tweak)), opts);
+    const pub = curve.pointAddScalar(ecpair.publicKey, tweak);
+    if (!pub) {
+        return;
+    }
+    return ECPair.fromPublicKey(Buffer.from(pub), opts);
 }
 exports.bip86 = bip86;
 function createTaprootOutput(pubkey, root) {
     const tweaked = curve.pointAddScalar(pubkey, tapTweak(pubkey, root));
+    if (!tweaked) {
+        return;
+    }
     const key = Buffer.from(tweaked).slice(-32);
     return {
         key,
@@ -357,7 +384,7 @@ function removeTransaction(template, txid) {
         toRemove.push(...tx.TXdepends);
         removed.push(...txs.splice(txs.indexOf(tx), 1));
     }
-    template.coinbasevalue -= removed.reduce((v, x) => v + x.fee, 0);
+    template.coinbasevalue -= removed.reduce((v, x) => v + (x.fee || 0), 0);
     updateNumberDepends(template);
     return removed;
 }
@@ -396,7 +423,7 @@ function bech32toScriptPubKey(a) {
 }
 exports.bech32toScriptPubKey = bech32toScriptPubKey;
 function cloneBuf(buf) {
-    return Uint8Array.prototype.slice.call(buf);
+    return Buffer.from(buf);
 }
 exports.cloneBuf = cloneBuf;
 function txidToString(txid) {
