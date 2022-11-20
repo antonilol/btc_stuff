@@ -25,7 +25,7 @@ jobs:
           sudo cp -r bitcoin-23.0/* /usr/local
       - name: Start Bitcoin Core
         run: |
-          bitcoind -regtest -daemonwait -txindex
+          bitcoind -regtest -daemonwait -txindex -fallbackfee=0.00001000
           bitcoin-cli -regtest createwallet ghactions
           bitcoin-cli -regtest -generate 200
       - name: Install npm dependencies
