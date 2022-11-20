@@ -21,6 +21,7 @@ jobs:
         run: |
           curl https://bitcoincore.org/bin/bitcoin-core-23.0/bitcoin-23.0-x86_64-linux-gnu.tar.gz -o bitcoin-core.tar.gz
           echo 2cca490c1f2842884a3c5b0606f179f9f937177da4eadd628e3f7fd7e25d26d0 bitcoin-core.tar.gz | sha256sum -c
+          tar xf bitcoin-core.tar.gz
           sudo cp -r bitcoin-23.0/* /usr/local
       - name: Start Bitcoin Core
         run: |
