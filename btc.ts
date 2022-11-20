@@ -184,6 +184,7 @@ export interface ListUnspentArgs {
 }
 
 export type TransactionType = string | Buffer | bitcoin.Transaction;
+export type PsbtType = string | bitcoin.Psbt;
 
 export type Chain = 'main' | 'test' | 'regtest' | 'signet';
 
@@ -197,7 +198,7 @@ export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 let chain: Chain = 'test';
 export let network = networks[chain];
 
-export async function btc(...args: (string | Buffer | number | {} | TransactionType)[]): Promise<string> {
+export async function btc(...args: (string | Buffer | number | {} | TransactionType | PsbtType)[]): Promise<string> {
 	return new Promise((r, e) => {
 		const cmdargs = [ `-chain=${chain}`, '-stdin' ];
 		while (args.length && typeof args[0] === 'string' && args[0].startsWith('-')) {
@@ -237,6 +238,8 @@ export async function btc(...args: (string | Buffer | number | {} | TransactionT
 						arg = x;
 					} else if (x instanceof bitcoin.Transaction) {
 						arg = x.toHex();
+					} else if (x instanceof bitcoin.Psbt) {
+						arg = x.toBase64();
 					} else {
 						arg = JSON.stringify(x);
 					}
@@ -280,12 +283,26 @@ export async function signAndSend(tx: TransactionType): Promise<string> {
 }
 
 export async function fundTransaction(
-	tx: TransactionType
-): Promise<{ tx: bitcoin.Transaction; fee: number; changepos: number }> {
+	tx: TransactionType,
+	convert: false
+): Promise<{ hex: string; fee: number; changepos: number }>;
+export async function fundTransaction(
+	tx: TransactionType,
+	convert?: true
+): Promise<{ tx: bitcoin.Transaction; hex: string; fee: number; changepos: number }>;
+export async function fundTransaction(
+	tx: TransactionType,
+	convert?: boolean
+): Promise<{ tx?: bitcoin.Transaction; hex: string; fee: number; changepos: number }>;
+export async function fundTransaction(
+	tx: TransactionType,
+	convert = true
+): Promise<{ tx: bitcoin.Transaction; hex: string; fee: number; changepos: number }> {
 	const res = JSON.parse(await btc('fundrawtransaction', tx));
 
-	res.tx = bitcoin.Transaction.fromHex(res.hex);
-	delete res.hex;
+	if (convert) {
+		res.tx = bitcoin.Transaction.fromHex(res.hex);
+	}
 
 	return res;
 }
@@ -350,6 +367,74 @@ export async function getTXOut(txid: string | Buffer, vout: number, include_memp
 	if (txout) {
 		return JSON.parse(txout);
 	}
+}
+
+export namespace getTransaction {
+	interface DetailsBase {
+		involvesWatchonly?: boolean;
+		address?: string;
+		amount: number;
+		label?: string;
+		vout: number;
+	}
+
+	export interface OutputNoDecodedTx {
+		amount: number;
+		fee?: number;
+		confirmations: number;
+		generated?: boolean;
+		trusted?: boolean;
+		blockhash?: string;
+		blockheight?: number;
+		blockindex?: number;
+		blocktime?: number;
+		txid: string;
+		walletconflicts: string[];
+		replaced_by_txid?: string;
+		replaces_txid?: string;
+		// comment?: string;
+		to?: string;
+		time: number;
+		timereceived: number;
+		comment?: string;
+		'bip125-replaceable': 'yes' | 'no' | 'unknown';
+		details: (
+			| (DetailsBase & { category: 'receive' | 'generate' | 'immature' | 'orphan' })
+			| (DetailsBase & { category: 'send'; fee: number; abandoned: boolean })
+		)[];
+		hex: string;
+	}
+
+	export interface OutputDecodedTx extends OutputNoDecodedTx {
+		decoded: RawTransaction;
+	}
+
+	export interface Output extends OutputNoDecodedTx {
+		decoded?: RawTransaction;
+	}
+}
+
+export async function getTransaction(
+	txid: string | Buffer,
+	includeWatchonly: boolean,
+	verbose?: false
+): Promise<getTransaction.OutputNoDecodedTx>;
+export async function getTransaction(
+	txid: string | Buffer,
+	includeWatchonly: boolean,
+	verbose: true
+): Promise<getTransaction.OutputDecodedTx>;
+export async function getTransaction(
+	txid: string | Buffer,
+	includeWatchonly?: boolean,
+	verbose?: boolean
+): Promise<getTransaction.Output>;
+export async function getTransaction(
+	txid: string | Buffer,
+	includeWatchonly = true,
+	verbose = false
+): Promise<getTransaction.Output> {
+	return JSON.parse(await btc('gettransaction', txidToString(txid), includeWatchonly, verbose));
 }
 
 export namespace testMempoolAccept {
@@ -448,13 +533,34 @@ export async function getIndexInfo(index?: getIndexInfo.Index): Promise<getIndex
 	return JSON.parse(await btc('getindexinfo', index || ''));
 }
 
-// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
+export async function fundOutputScript(
+	scriptPubKey: Buffer,
+	amount: number,
+	locktime = 0,
+	version = 2
+): Promise<{ txid: string; txidBytes: Buffer; vout: number; hex: string }> {
+	const tx = new bitcoin.Transaction();
 
+	tx.version = version;
+	tx.addOutput(scriptPubKey, amount);
+	tx.locktime = locktime;
+
+	const funded = await fundTransaction(tx, true);
+	const vout = funded.tx.outs.findIndex(output => output.value === amount && output.script.equals(scriptPubKey));
+	assert(vout != -1);
+	await signAndSend(funded.hex);
+	return {
+		txid: funded.tx.getId(),
+		txidBytes: Buffer.from(funded.tx.getId(), 'hex').reverse(),
+		vout,
+		hex: funded.hex
+	};
+}
+
+/** @deprecated Use `fundOutputScript(bitcoin.address.toOutputScript(address, network), amount)` instead */
 export async function fundAddress(address: string, amount: number): Promise<OutputPoint> {
-	// return fundScript(bitcoin.address.toOutputScript(address, network), amount);
-
 	const txid = await btc('sendtoaddress', address, toBTC(amount));
-	const vout = JSON.parse(await btc('gettransaction', txid)).details.find(x => x.address == address).vout;
+	const vout = (await getTransaction(txid)).details.find(x => x.address == address).vout;
 
 	return { txid, vout };
 }
@@ -496,7 +602,8 @@ export function negateIfOddPubkey(d: Uint8Array): Buffer | undefined {
 	return Buffer.from(d);
 }
 
-const EC_N = Uint256.toBigint(N_LESS_1) + 1n;
+// const EC_P = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2fn // not used yet
+const EC_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 
 export function ecPrivateMul(a: Uint8Array, b: Uint8Array): Buffer {
 	const an = Uint256.toBigint(a);
@@ -508,6 +615,26 @@ export function ecPrivateMul(a: Uint8Array, b: Uint8Array): Buffer {
 		throw new Error('b out of range');
 	}
 	return Uint256.toBuffer((an * bn) % EC_N);
+}
+
+export function ecPrivateInv(a: Uint8Array): Buffer {
+	let an = Uint256.toBigint(a);
+	if (an <= 0n || an >= EC_N) {
+		throw new Error('a out of range');
+	}
+
+	let m = EC_N;
+	let y1 = 1n;
+	let y2 = 0n;
+	while (an > 1) {
+		[ y1, y2 ] = [ y2 - (m / an) * y1, y1 ];
+		[ an, m ] = [ m % an, an ];
+	}
+	return Uint256.toBuffer(((y1 % EC_N) + EC_N) % EC_N);
+}
+
+export function ecPrivateDiv(a: Uint8Array, b: Uint8Array): Buffer {
+	return ecPrivateMul(a, ecPrivateInv(b));
 }
 
 export function tapLeaf(script: Buffer): Buffer {

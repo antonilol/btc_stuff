@@ -33,7 +33,7 @@ async function main() {
 
 	const ecpair = ECPair.fromWIF(await btc('dumpprivkey', utxo.address), network);
 
-	const tx = new bitcoin.Transaction(network);
+	const tx = new bitcoin.Transaction();
 
 	tx.addInput(Buffer.from(utxo.txid, 'hex').reverse(), utxo.vout);
 

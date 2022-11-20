@@ -8,7 +8,11 @@ When dealing with TypeScript files, run `npm run build` before running them with
 
 **(!) Use at your own risk, only use on the mainnet if you are 100% certain it works the way you want or funds can be lost! (!)**
 
+Developed mostly using Bitcoin Core v23, some older ones could expect v22 RPCs
+
 ### Example usage
+
+Note: this example still works for some files, but is subject to change
 
 Requirements:
 Make sure to have

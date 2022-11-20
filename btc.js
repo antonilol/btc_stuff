@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
+exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateDiv = exports.ecPrivateInv = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.fundOutputScript = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTransaction = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
 const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const curve = __importStar(require("tiny-secp256k1"));
@@ -86,6 +86,9 @@ async function btc(...args) {
             else if (x instanceof bitcoin.Transaction) {
                 arg = x.toHex();
             }
+            else if (x instanceof bitcoin.Psbt) {
+                arg = x.toBase64();
+            }
             else {
                 arg = JSON.stringify(x);
             }
@@ -124,10 +127,11 @@ async function signAndSend(tx) {
     return send(JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex);
 }
 exports.signAndSend = signAndSend;
-async function fundTransaction(tx) {
+async function fundTransaction(tx, convert = true) {
     const res = JSON.parse(await btc('fundrawtransaction', tx));
-    res.tx = bitcoin.Transaction.fromHex(res.hex);
-    delete res.hex;
+    if (convert) {
+        res.tx = bitcoin.Transaction.fromHex(res.hex);
+    }
     return res;
 }
 exports.fundTransaction = fundTransaction;
@@ -187,6 +191,10 @@ async function getTXOut(txid, vout, include_mempool = true) {
     }
 }
 exports.getTXOut = getTXOut;
+async function getTransaction(txid, includeWatchonly = true, verbose = false) {
+    return JSON.parse(await btc('gettransaction', txidToString(txid), includeWatchonly, verbose));
+}
+exports.getTransaction = getTransaction;
 async function testMempoolAccept(txs, maxfeerate) {
     const arr = Array.isArray(txs);
     const res = JSON.parse(await (maxfeerate === undefined
@@ -203,11 +211,27 @@ async function getIndexInfo(index) {
     return JSON.parse(await btc('getindexinfo', index || ''));
 }
 exports.getIndexInfo = getIndexInfo;
-// export function fundScript(scriptPubKey: Buffer, amount: number): Promise<UTXO | void> { /* TODO */ }
+async function fundOutputScript(scriptPubKey, amount, locktime = 0, version = 2) {
+    const tx = new bitcoin.Transaction();
+    tx.version = version;
+    tx.addOutput(scriptPubKey, amount);
+    tx.locktime = locktime;
+    const funded = await fundTransaction(tx, true);
+    const vout = funded.tx.outs.findIndex(output => output.value === amount && output.script.equals(scriptPubKey));
+    (0, assert_1.strict)(vout != -1);
+    await signAndSend(funded.hex);
+    return {
+        txid: funded.tx.getId(),
+        txidBytes: Buffer.from(funded.tx.getId(), 'hex').reverse(),
+        vout,
+        hex: funded.hex
+    };
+}
+exports.fundOutputScript = fundOutputScript;
+/** @deprecated Use `fundOutputScript(bitcoin.address.toOutputScript(address, network), amount)` instead */
 async function fundAddress(address, amount) {
-    // return fundScript(bitcoin.address.toOutputScript(address, network), amount);
     const txid = await btc('sendtoaddress', address, toBTC(amount));
-    const vout = JSON.parse(await btc('gettransaction', txid)).details.find(x => x.address == address).vout;
+    const vout = (await getTransaction(txid)).details.find(x => x.address == address).vout;
     return { txid, vout };
 }
 exports.fundAddress = fundAddress;
@@ -245,7 +269,8 @@ function negateIfOddPubkey(d) {
     return Buffer.from(d);
 }
 exports.negateIfOddPubkey = negateIfOddPubkey;
-const EC_N = Uint256.toBigint(N_LESS_1) + 1n;
+// const EC_P = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2fn // not used yet
+const EC_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 function ecPrivateMul(a, b) {
     const an = Uint256.toBigint(a);
     const bn = Uint256.toBigint(b);
@@ -258,6 +283,25 @@ function ecPrivateMul(a, b) {
     return Uint256.toBuffer((an * bn) % EC_N);
 }
 exports.ecPrivateMul = ecPrivateMul;
+function ecPrivateInv(a) {
+    let an = Uint256.toBigint(a);
+    if (an <= 0n || an >= EC_N) {
+        throw new Error('a out of range');
+    }
+    let m = EC_N;
+    let y1 = 1n;
+    let y2 = 0n;
+    while (an > 1) {
+        [y1, y2] = [y2 - (m / an) * y1, y1];
+        [an, m] = [m % an, an];
+    }
+    return Uint256.toBuffer(((y1 % EC_N) + EC_N) % EC_N);
+}
+exports.ecPrivateInv = ecPrivateInv;
+function ecPrivateDiv(a, b) {
+    return ecPrivateMul(a, ecPrivateInv(b));
+}
+exports.ecPrivateDiv = ecPrivateDiv;
 function tapLeaf(script) {
     return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0]), encodeVarUintLE(script.length), script]));
 }
