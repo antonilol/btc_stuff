@@ -15,4 +15,4 @@ jobs:
       - name: Format files
         run: npm run precommit
       - name: Check diff
-        run: test -z $(git status -s)
+        run: test -z "$(git status -s)"
