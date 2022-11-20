@@ -28,6 +28,8 @@ jobs:
           bitcoind -regtest -daemonwait -txindex
           bitcoin-cli -regtest createwallet ghactions
           bitcoin-cli -regtest -generate 200
+      - name: Install npm dependencies
+        run: npm install
       - name: Run test a few times
         run: .github/workflows/test.sh ${{ matrix.name }} 10
       - name: Stop Bitcoin Core
