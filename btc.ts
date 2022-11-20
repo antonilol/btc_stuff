@@ -1,4 +1,4 @@
-import {  spawn } from 'child_process';
+import { spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as curve from 'tiny-secp256k1';
 import { createInterface } from 'readline';
