@@ -1,0 +1,33 @@
+name: Run examples on regtest
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        name: ['ecdsa_sigdata']
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v3
+      - name: Install Bitcoin Core
+        run: |
+          curl https://bitcoincore.org/bin/bitcoin-core-23.0/bitcoin-23.0-x86_64-linux-gnu.tar.gz -o bitcoin-core.tar.gz
+          echo 2cca490c1f2842884a3c5b0606f179f9f937177da4eadd628e3f7fd7e25d26d0 bitcoin-core.tar.gz | sha256sum -c
+          sudo cp -r bitcoin-23.0/* /usr/local
+      - name: Start Bitcoin Core
+        run: |
+          bitcoind -regtest -daemonwait -txindex
+          bitcoin-cli -regtest createwallet ghactions
+          bitcoin-cli -regtest -generate 200
+      - name: Run test a few times
+        run: .github/workflows/test.sh ${{ matrix.name }} 10
+      - name: Stop Bitcoin Core
+        run: bitcoin-cli -regtest stop
