@@ -1,4 +1,4 @@
-import { setChain, send, getnewaddress, fundOutputScript, ecPrivateMul, ecPrivateDiv } from './btc';
+import { setChain, send, getnewaddress, fundOutputScript, ecPrivateMul, ecPrivateDiv, p2pkh } from './btc';
 import * as curve from 'tiny-secp256k1';
 import { ECPairFactory } from 'ecpair';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -187,18 +187,7 @@ fundOutputScript(script, amount).then(async funding => {
 	tx.addInput(funding.txidBytes, funding.vout);
 	tx.addOutput(bitcoin.address.toOutputScript(await getnewaddress(), network), amount - fee);
 
-	const sighash = tx.hashForWitnessV0(
-		0,
-		bitcoin.script.compile([
-			bitcoin.opcodes.OP_DUP,
-			bitcoin.opcodes.OP_HASH160,
-			bitcoin.crypto.hash160(ecpair.publicKey),
-			bitcoin.opcodes.OP_EQUALVERIFY,
-			bitcoin.opcodes.OP_CHECKSIG
-		]),
-		amount,
-		hashtype
-	);
+	const sighash = tx.hashForWitnessV0(0, p2pkh(ecpair.publicKey), amount, hashtype);
 
 	const data = Buffer.from('p2wpkh_sigdata.ts test          ');
 
@@ -230,5 +219,5 @@ fundOutputScript(script, amount).then(async funding => {
 	tx.setWitness(0, [ bitcoin.script.signature.encode(sig.sig, hashtype), ecpair.publicKey ]);
 
 	console.log(tx.toHex());
-	console.log(await send(tx.toHex()));
+	await send(tx.toHex());
 });

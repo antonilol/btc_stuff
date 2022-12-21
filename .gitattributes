@@ -1,6 +1,7 @@
 addresses.js linguist-generated
 btc.js linguist-generated
 descriptors.js linguist-generated
+ecdh_stealth.js linguist-generated
 ecdsa_sigdata.js linguist-generated
 lightning/channeldb_reader.js linguist-generated
 lightning/lndforcecloser.js linguist-generated

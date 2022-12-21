@@ -817,6 +817,17 @@ export function bech32toScriptPubKey(a: string): Buffer {
 	return bitcoin.script.compile([ bitcoin.script.number.encode(z.version), bitcoin.address.fromBech32(a).data ]);
 }
 
+export function p2pkh(pub: Buffer): Buffer {
+	return bitcoin.script.compile([
+		bitcoin.opcodes.OP_DUP,
+		bitcoin.opcodes.OP_HASH160,
+		bitcoin.crypto.hash160(pub),
+		bitcoin.opcodes.OP_EQUALVERIFY,
+		bitcoin.opcodes.OP_CHECKSIG
+	]);
+}
+
+/** @deprecated Use `Buffer.from` instead */
 export function cloneBuf(buf: Buffer): Buffer {
 	return Buffer.from(buf);
 }
@@ -825,7 +836,7 @@ export function txidToString(txid: string | Buffer): string {
 	if (typeof txid === 'string') {
 		return txid;
 	}
-	return cloneBuf(txid).reverse().toString('hex');
+	return Buffer.from(txid).reverse().toString('hex');
 }
 
 export function toSat(btcAmount: number): number {

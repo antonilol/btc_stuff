@@ -146,13 +146,7 @@ const fee = 122;
     const tx = new bitcoin.Transaction();
     tx.addInput(funding.txidBytes, funding.vout);
     tx.addOutput(bitcoin.address.toOutputScript(await (0, btc_1.getnewaddress)(), network), amount - fee);
-    const sighash = tx.hashForWitnessV0(0, bitcoin.script.compile([
-        bitcoin.opcodes.OP_DUP,
-        bitcoin.opcodes.OP_HASH160,
-        bitcoin.crypto.hash160(ecpair.publicKey),
-        bitcoin.opcodes.OP_EQUALVERIFY,
-        bitcoin.opcodes.OP_CHECKSIG
-    ]), amount, hashtype);
+    const sighash = tx.hashForWitnessV0(0, (0, btc_1.p2pkh)(ecpair.publicKey), amount, hashtype);
     const data = Buffer.from('p2wpkh_sigdata.ts test          ');
     const sig = sign(sighash, ecpair.privateKey, data);
     // we need to have some way to check the recovered data is correct because the
@@ -168,5 +162,5 @@ const fee = 122;
     (0, assert_1.strict)(data.equals(recover(sig.sig, sighash, ecpair.privateKey, undefined, sig.recoveryHint.subarray(0, 1))), 'recovery with 1 byte recoveryHint failed');
     tx.setWitness(0, [bitcoin.script.signature.encode(sig.sig, hashtype), ecpair.publicKey]);
     console.log(tx.toHex());
-    console.log(await (0, btc_1.send)(tx.toHex()));
+    await (0, btc_1.send)(tx.toHex());
 });

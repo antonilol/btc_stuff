@@ -19,10 +19,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.merkleRoot = void 0;
+exports.merkleRoot = exports.pathToMerkleRoot = void 0;
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const assert_1 = require("assert");
-function merkleRoot(txids) {
+function pathToMerkleRoot(txids, branch) {
     let t1 = txids.map(txid => {
         if (!Buffer.isBuffer(txid)) {
             txid = Buffer.from(txid, 'hex').reverse();
@@ -30,6 +30,8 @@ function merkleRoot(txids) {
         (0, assert_1.strict)(txid.length == 32, 'TXID must be 256 bits long');
         return txid;
     });
+    let curr = Buffer.isBuffer(branch) ? branch : Buffer.from(branch, 'hex').reverse();
+    const path = [];
     while (t1.length > 1) {
         const t2 = [];
         while (t1.length) {
@@ -37,10 +39,26 @@ function merkleRoot(txids) {
             if (ids.length == 1) {
                 ids.push(ids[0]);
             }
-            t2.push(bitcoin.crypto.hash256(Buffer.concat(ids)));
+            const hash = bitcoin.crypto.hash256(Buffer.concat(ids));
+            if (ids[0].equals(curr)) {
+                path.push({ branch: ids[1], action: 'append' });
+                curr = hash;
+            }
+            else if (ids[1].equals(curr)) {
+                path.push({ branch: ids[0], action: 'prepend' });
+                curr = hash;
+            }
+            t2.push(hash);
         }
         t1 = t2;
     }
-    return t1[0];
+    (0, assert_1.strict)(t1[0].equals(curr), 'branch not in merkle tree');
+    path.root = t1[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return path;
+}
+exports.pathToMerkleRoot = pathToMerkleRoot;
+function merkleRoot(txids) {
+    return pathToMerkleRoot(txids, txids[0]).root;
 }
 exports.merkleRoot = merkleRoot;
