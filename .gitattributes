@@ -10,5 +10,5 @@ merkle_tree.js linguist-generated
 miner.js linguist-generated
 p2tr_ptlc.js linguist-generated
 p2tr_tapscript.js linguist-generated
-scriptanalyzer/index.js
+scriptanalyzer/index.js linguist-generated
 xpriv.js linguist-generated
