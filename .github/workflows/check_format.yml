@@ -19,5 +19,5 @@ jobs:
         run: npm run precommit
       - name: Check diff
         run: |
-          git status -s
+          git diff
           test -z "$(git status -s)"
