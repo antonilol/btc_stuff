@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ['ecdsa_sigdata']
+        name: ['ecdsa_sigdata', 'ecdh_stealth']
     steps:
       - name: Git Checkout
         uses: actions/checkout@v3
