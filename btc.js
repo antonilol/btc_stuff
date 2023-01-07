@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.consoleTrace = exports.sleep = exports.input = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.p2pkh = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateDiv = exports.ecPrivateInv = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.fundOutputScript = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTransaction = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
+exports.consoleTrace = exports.sleep = exports.input = exports.inputOnEOF = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.p2pkh = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateDiv = exports.ecPrivateInv = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.fundOutputScript = exports.getBlockChainInfo = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTransaction = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
 const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const curve = __importStar(require("tiny-secp256k1"));
@@ -211,6 +211,10 @@ async function getIndexInfo(index) {
     return JSON.parse(await btc('getindexinfo', index || ''));
 }
 exports.getIndexInfo = getIndexInfo;
+async function getBlockChainInfo() {
+    return JSON.parse(await btc('getblockchaininfo'));
+}
+exports.getBlockChainInfo = getBlockChainInfo;
 async function fundOutputScript(scriptPubKey, amount, locktime = 0, version = 2) {
     const tx = new bitcoin.Transaction();
     tx.version = version;
@@ -508,6 +512,11 @@ function toBTCkvB(satvB) {
     return toBTC(Math.round(satvB * 1000));
 }
 exports.toBTCkvB = toBTCkvB;
+const eofCallbacks = [];
+function inputOnEOF(cb) {
+    eofCallbacks.push(cb);
+}
+exports.inputOnEOF = inputOnEOF;
 async function input(q, hide = false) {
     let active = false;
     const rl = (0, readline_1.createInterface)({
@@ -529,12 +538,21 @@ async function input(q, hide = false) {
         }),
         terminal: true
     });
-    const ret = new Promise(r => rl.question(q, a => {
-        r(a);
-        rl.close();
-    }));
-    active = true;
-    return ret;
+    return new Promise(r => {
+        let resolved = false;
+        rl.question(q, a => {
+            r(a);
+            resolved = true;
+            rl.close();
+        });
+        rl.on('close', () => {
+            if (!resolved) {
+                console.log();
+                eofCallbacks.forEach(cb => cb());
+            }
+        });
+        active = true;
+    });
 }
 exports.input = input;
 async function sleep(ms) {

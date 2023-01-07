@@ -49,6 +49,7 @@ export interface UTXO extends OutputPoint {
 	solvable: boolean;
 	reused?: boolean;
 	desc?: string;
+	parent_descs: string[];
 	safe: boolean;
 }
 
@@ -389,6 +390,7 @@ export namespace getTransaction {
 		blockindex?: number;
 		blocktime?: number;
 		txid: string;
+		wtxid: string;
 		walletconflicts: string[];
 		replaced_by_txid?: string;
 		replaces_txid?: string;
@@ -399,7 +401,8 @@ export namespace getTransaction {
 		comment?: string;
 		'bip125-replaceable': 'yes' | 'no' | 'unknown';
 		details: (
-			| (DetailsBase & { category: 'receive' | 'generate' | 'immature' | 'orphan' })
+			| (DetailsBase & { category: 'receive'; parent_descs: string[] })
+			| (DetailsBase & { category: 'generate' | 'immature' | 'orphan' })
 			| (DetailsBase & { category: 'send'; fee: number; abandoned: boolean })
 		)[];
 		hex: string;
@@ -531,6 +534,49 @@ export async function getIndexInfo(index: getIndexInfo.Index): Promise<getIndexI
 export async function getIndexInfo(index?: getIndexInfo.Index): Promise<getIndexInfo.Output>;
 export async function getIndexInfo(index?: getIndexInfo.Index): Promise<getIndexInfo.Output> {
 	return JSON.parse(await btc('getindexinfo', index || ''));
+}
+
+export namespace getBlockChainInfo {
+	interface ChainInfoBase {
+		chain: Chain;
+		blocks: number;
+		headers: number;
+		bestblockhash: string;
+		difficulty: number;
+		time: number;
+		mediantime: number;
+		verificationprogress: number;
+		initialblockdownload: boolean;
+		chainwork: string;
+		size_on_disk: number;
+		pruned: boolean;
+		warnings: string;
+	}
+
+	interface ChainInfo extends ChainInfoBase {
+		pruned: false;
+	}
+
+	interface PruneChainInfoBase extends ChainInfoBase {
+		pruned: true;
+		pruneheight: number;
+		automatic_pruning: boolean;
+	}
+
+	interface PruneChainInfo extends PruneChainInfoBase {
+		automatic_pruning: false;
+	}
+
+	interface AutomaticPruneChainInfo extends PruneChainInfoBase {
+		automatic_pruning: true;
+		prune_target_size: number;
+	}
+
+	export type Output = ChainInfo | PruneChainInfo | AutomaticPruneChainInfo;
+}
+
+export async function getBlockChainInfo(): Promise<getBlockChainInfo.Output> {
+	return JSON.parse(await btc('getblockchaininfo'));
 }
 
 export async function fundOutputScript(
@@ -859,6 +905,11 @@ export function toBTCkvB(satvB: number): number {
 	return toBTC(Math.round(satvB * 1000));
 }
 
+const eofCallbacks: (() => void)[] = [];
+export function inputOnEOF(cb: () => void): void {
+	eofCallbacks.push(cb);
+}
+
 export async function input(q: string, hide = false): Promise<string> {
 	let active = false;
 
@@ -883,16 +934,22 @@ export async function input(q: string, hide = false): Promise<string> {
 		terminal: true
 	});
 
-	const ret = new Promise<string>(r =>
+	return new Promise(r => {
+		let resolved = false;
 		rl.question(q, a => {
 			r(a);
+			resolved = true;
 			rl.close();
-		})
-	);
+		});
+		rl.on('close', () => {
+			if (!resolved) {
+				console.log();
+				eofCallbacks.forEach(cb => cb());
+			}
+		});
 
-	active = true;
-
-	return ret;
+		active = true;
+	});
 }
 
 export async function sleep(ms: number): Promise<void> {
