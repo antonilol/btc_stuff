@@ -1,4 +1,15 @@
 "use strict";
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
         if (ar || !(i in from)) {
@@ -44,6 +55,18 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+// sequence:
+// tx version >= 2
+// SEQUENCE_LOCKTIME_DISABLE_FLAG = (1<<31) cant be set on the tx
+// SEQUENCE_LOCKTIME_TYPE_FLAG = (1 << 22) | SEQUENCE_LOCKTIME_MASK = 0x0000ffff masked
+// both sequence must be same type (blocks or time)
+var sequenceMask = BigInt(0x40ffff);
+function maskSequence(seq) {
+    return Number(BigInt(seq) & sequenceMask);
+}
+// locktime:
+// both smaller than 500000000 (blocks) or both greater or equal (time)
+// sequence not SEQUENCE_FINAL = 0xffffffff
 var ScriptAnalyzer = /** @class */ (function () {
     function ScriptAnalyzer(arg) {
         if (arg instanceof ScriptAnalyzer) {
@@ -52,11 +75,12 @@ var ScriptAnalyzer = /** @class */ (function () {
             this.stack = arg.stack.slice();
             this.altstack = arg.altstack.slice();
             this.spendingConditions = arg.spendingConditions.slice();
-            this.varCounter = arg.varCounter;
+            this.stackIndex = arg.stackIndex;
             this.script = arg.script;
             this.scriptOffset = arg.scriptOffset;
-            this.path = arg.path + 1;
             this.cs = arg.cs.clone();
+            this.locktimeRequirement = __assign({}, arg.locktimeRequirement);
+            this.sequenceRequirement = __assign({}, arg.sequenceRequirement);
             this.branches = arg.branches;
             this.branches.push(this);
         }
@@ -66,11 +90,12 @@ var ScriptAnalyzer = /** @class */ (function () {
             this.stack = [];
             this.altstack = [];
             this.spendingConditions = [];
-            this.varCounter = 0;
+            this.stackIndex = 0;
             this.script = arg;
             this.scriptOffset = 0;
-            this.path = 0;
             this.cs = new ConditionStack();
+            this.locktimeRequirement = { exprs: [] };
+            this.sequenceRequirement = { exprs: [] };
             this.branches = [this];
         }
     }
@@ -79,94 +104,54 @@ var ScriptAnalyzer = /** @class */ (function () {
         for (var _i = 0, script_1 = script; _i < script_1.length; _i++) {
             var op = script_1[_i];
             if (typeof op === 'number' && disabledOpcodes.includes(op)) {
-                return scriptErrorString(ScriptError.SCRIPT_ERR_DISABLED_OPCODE);
+                return "Script error: ".concat(scriptErrorString(ScriptError.SCRIPT_ERR_DISABLED_OPCODE));
             }
         }
         var analyzer = new ScriptAnalyzer(script);
-        var out = analyzer.analyze();
-        if (typeof out === 'number') {
-            console.log('spending path error:', scriptErrorString(out), analyzer.stack);
+        analyzer.analyze();
+        ScriptAnalyzer.cleanupConditions(analyzer.branches);
+        if (!analyzer.branches.length) {
+            return 'Script is unspendable';
+        }
+        var s = 'Spending paths:';
+        for (var _a = 0, _b = analyzer.branches; _a < _b.length; _a++) {
+            var a = _b[_a];
+            var locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement);
+            var sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement);
+            s += "\n\n\t\t\t\tConditions: ".concat(a.spendingConditions.map(function (expr) { return Expr.exprToString(expr); }).join(' && '), "\n\t\t\t\tLocktime requirement: ").concat(locktime !== null && locktime !== void 0 ? locktime : 'no', "\n\t\t\t\tSequence requirement: ").concat(sequence !== null && sequence !== void 0 ? sequence : (locktime ? 'non final (not 0xffffffff)' : 'no'));
+        }
+        return s;
+    };
+    ScriptAnalyzer.locktimeRequirementToString = function (l) {
+        if (!(l.exprs.length || 'type' in l)) {
             return;
         }
-        analyzer.cleanupConditions();
+        return "type: ".concat('type' in l ? l.type : 'unknown', ", minValue: ").concat('type' in l ? l.minValue : 'unknown').concat(l.exprs.length ? ", stack elements: ".concat(l.exprs.map(function (expr) { return Expr.exprToString(expr); }).join(', ')) : '');
     };
-    ScriptAnalyzer.prototype.printSpendingConditions = function (conds) {
-        console.log(conds.map(function (exprs) { return exprs.map(function (expr) { return Util.exprToString(expr); }).join(' && '); }).join(' ||\n'));
-        // console.log('stack', this.stack);
-        // console.log('altstack', this.altstack);
-    };
-    ScriptAnalyzer.prototype.evalExpr = function (expr) {
-        /*
-        if (expr instanceof Uint8Array) {
-            return ScriptConv.Bool.decode(expr);
-        }
-        */
-        if ('opcode' in expr) {
-            switch (expr.opcode) {
-                case opcodes.OP_EQUAL: {
-                    var _a = expr.args, a1 = _a[0], a2 = _a[1];
-                    if (a1 instanceof Uint8Array && a2 instanceof Uint8Array) {
-                        return ScriptConv.Bool.encode(!Util.bufferCompare(a1, a2));
-                    }
-                    break;
-                }
-                case opcodes.INTERNAL_NOT:
-                case opcodes.OP_NOT: {
-                    if (expr.args[0] instanceof Uint8Array) {
-                        return ScriptConv.Bool.not(expr.args[0]);
-                    }
-                    var arg = expr.args[0];
-                    if ('opcode' in arg && arg.opcode === opcodes.OP_CHECKSIG) {
-                        return { opcode: opcodes.OP_EQUAL, args: [arg.args[0], ScriptConv.Bool.FALSE] };
-                    }
-                    break;
-                }
-                /*
-                case opcodes.OP_CHECKMULTISIG: {
-                    const l = expr.args.length;
-                    const k = (<Uint8Array>expr.args[l - 1])[0];
-                    const s = (<Uint8Array>expr.args[l - k - 1])[0];
-                    if (k === s) {
-                        const output: Expr[] = [];
-                        for (let i = 0; i < k; i++) {
-                            output.push({
-                                opcode: opcodes.OP_CHECKSIG,
-                                args: [ expr.args[l - i - k - 3], expr.args[l - i - 2] ]
-                            });
-                        }
-                        return output;
-                    }
-                    break;
-                }
-                */
-            }
-        }
-    };
-    ScriptAnalyzer.prototype.cleanupConditions = function () {
-        var conds = this.branches.map(function (b) { return b.spendingConditions; });
-        for (var i = 0; i < conds.length; i++) {
-            var exprs = conds[i];
-            Util.normalizeExprs(exprs);
+    ScriptAnalyzer.cleanupConditions = function (branches) {
+        for (var i = 0; i < branches.length; i++) {
+            var exprs = branches[i].spendingConditions;
+            Expr.normalizeExprs(exprs);
             exprs: for (var j = 0; j < exprs.length; j++) {
                 var expr = exprs[j];
                 for (var k = j + 1; k < exprs.length; k++) {
                     var expr2 = exprs[k];
-                    if (Util.exprEqual(expr, expr2)) {
+                    if (Expr.exprEqual(expr, expr2)) {
                         exprs.splice(k, 1);
                         k--;
                     }
                     else if (('opcode' in expr &&
                         (expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
-                        Util.exprEqual(expr.args[0], exprs[k])) ||
+                        Expr.exprEqual(expr.args[0], exprs[k])) ||
                         ('opcode' in expr2 &&
                             (expr2.opcode === opcodes.OP_NOT || expr2.opcode === opcodes.INTERNAL_NOT) &&
-                            Util.exprEqual(expr, expr2.args[0]))) {
-                        conds.splice(i, 1);
+                            Expr.exprEqual(expr, expr2.args[0]))) {
+                        branches.splice(i, 1);
                         i--;
                         break exprs;
                     }
                 }
-                var res = this.evalExpr(expr);
+                var res = Expr.evalExpr(expr);
                 if (typeof res === 'boolean') {
                     if (res) {
                         exprs.splice(j, 1);
@@ -174,7 +159,7 @@ var ScriptAnalyzer = /** @class */ (function () {
                         // continue;
                     }
                     else {
-                        conds.splice(i, 1);
+                        branches.splice(i, 1);
                         i--;
                         break;
                     }
@@ -185,9 +170,20 @@ var ScriptAnalyzer = /** @class */ (function () {
                 }
             }
         }
-        this.printSpendingConditions(conds);
     };
     ScriptAnalyzer.prototype.analyze = function () {
+        var error = this.analyzePath();
+        if (error !== undefined) {
+            console.log("DEBUG: spending path returned error: ".concat(scriptErrorString(error)));
+            for (var i = 0; i < this.branches.length; i++) {
+                if (this.branches[i] === this) {
+                    this.branches.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    };
+    ScriptAnalyzer.prototype.analyzePath = function () {
         var _a, _b, _c, _d, _e, _f, _g;
         while (this.scriptOffset < this.script.length) {
             var fExec = this.cs.all_true();
@@ -411,7 +407,7 @@ var ScriptAnalyzer = /** @class */ (function () {
                             opcode: op === opcodes.OP_NUMEQUALVERIFY ? opcodes.OP_NUMEQUAL : op,
                             args: this.takeElements(2)
                         });
-                        if (op === opcodes.OP_EQUALVERIFY && !this.verify()) {
+                        if (op === opcodes.OP_NUMEQUALVERIFY && !this.verify()) {
                             return ScriptError.SCRIPT_ERR_NUMEQUALVERIFY;
                         }
                         break;
@@ -476,9 +472,54 @@ var ScriptAnalyzer = /** @class */ (function () {
                         }
                         break;
                     }
-                    case opcodes.OP_CHECKLOCKTIMEVERIFY:
+                    case opcodes.OP_CHECKLOCKTIMEVERIFY: {
+                        var arg = this.readElements(1)[0];
+                        if (arg instanceof Uint8Array) {
+                            var minValue = ScriptConv.Int.decode(arg);
+                            if (minValue < 0) {
+                                return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
+                            }
+                            var type = minValue < 500000000 ? 'height' : 'time';
+                            if ('type' in this.locktimeRequirement) {
+                                if (this.locktimeRequirement.type !== type) {
+                                    return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
+                                }
+                                if (this.locktimeRequirement.minValue < minValue) {
+                                    this.locktimeRequirement.minValue = minValue;
+                                }
+                            }
+                            else {
+                                this.locktimeRequirement = __assign(__assign({}, this.locktimeRequirement), { type: type, minValue: minValue });
+                            }
+                        }
+                        else {
+                            this.locktimeRequirement.exprs.push(arg);
+                        }
+                        break;
+                    }
                     case opcodes.OP_CHECKSEQUENCEVERIFY: {
-                        this.spendingConditions.push({ opcode: op, args: this.readElements(1) });
+                        var arg = this.readElements(1)[0];
+                        if (arg instanceof Uint8Array) {
+                            var minValue = maskSequence(ScriptConv.Int.decode(arg));
+                            if (minValue < 0) {
+                                return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
+                            }
+                            var type = minValue < 0x400000 ? 'height' : 'time';
+                            if ('type' in this.sequenceRequirement) {
+                                if (this.sequenceRequirement.type !== type) {
+                                    return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
+                                }
+                                if (this.sequenceRequirement.minValue < minValue) {
+                                    this.sequenceRequirement.minValue = minValue;
+                                }
+                            }
+                            else {
+                                this.sequenceRequirement = __assign(__assign({}, this.sequenceRequirement), { type: type, minValue: minValue });
+                            }
+                        }
+                        else {
+                            this.sequenceRequirement.exprs.push(arg);
+                        }
                         break;
                     }
                     case opcodes.OP_NOP1:
@@ -572,14 +613,14 @@ var ScriptAnalyzer = /** @class */ (function () {
                 res.unshift(this.stack.pop());
             }
             else {
-                res.unshift({ "var": this.varCounter++ });
+                res.unshift({ index: this.stackIndex++ });
             }
         }
         return res;
     };
     ScriptAnalyzer.prototype.readElements = function (amount) {
         while (this.stack.length < amount) {
-            this.stack.unshift({ "var": this.varCounter++ });
+            this.stack.unshift({ index: this.stackIndex++ });
         }
         return this.stack.slice(this.stack.length - amount);
     };
@@ -664,6 +705,162 @@ var ConditionStack = /** @class */ (function () {
     };
     return ConditionStack;
 }());
+var Expr;
+(function (Expr) {
+    function exprToString(e) {
+        if ('opcode' in e) {
+            var args = e.args.map(exprToString);
+            if (e.opcode === opcodes.INTERNAL_NOT && args.length === 1) {
+                return "!(".concat(args, ")");
+            }
+            else if (e.opcode === opcodes.OP_EQUAL && args.length === 2) {
+                return "(".concat(args[0], " == ").concat(args[1], ")");
+            }
+            return "".concat((opcodeName(e.opcode) || 'UNKNOWN').replace(/^OP_/, ''), "(").concat(args, ")");
+        }
+        else if ('index' in e) {
+            return "<stack item #".concat(e.index, ">");
+        }
+        else {
+            return Util.scriptElemToHex(e);
+        }
+    }
+    Expr.exprToString = exprToString;
+    function exprEqual(a, b) {
+        if ('opcode' in a && 'opcode' in b) {
+            if (a.args.length !== b.args.length) {
+                return false;
+            }
+            for (var i = 0; i < a.args.length; i++) {
+                if (!exprEqual(a.args[i], b.args[i])) {
+                    return false;
+                }
+            }
+            return a.opcode === b.opcode;
+        }
+        else if ('index' in a && 'index' in b) {
+            return a.index === b.index;
+        }
+        else if (a instanceof Uint8Array && b instanceof Uint8Array) {
+            return !Util.bufferCompare(a, b);
+        }
+        return false;
+    }
+    Expr.exprEqual = exprEqual;
+    var exprPriority = {
+        stack: 2,
+        opcode: 1,
+        value: 0
+    };
+    function exprType(expr) {
+        if ('opcode' in expr) {
+            return 'opcode';
+        }
+        else if ('index' in expr) {
+            return 'stack';
+        }
+        else {
+            return 'value';
+        }
+    }
+    function exprCompareFn(a, b) {
+        if ('opcode' in a && 'opcode' in b) {
+            // smallest opcode first
+            var s = a.opcode - b.opcode;
+            if (s) {
+                return s;
+            }
+            // only for OP_CHECKMULTISIG (?)
+            var ldiff = a.args.length - b.args.length;
+            if (ldiff) {
+                return ldiff;
+            }
+            for (var i = 0; i < a.args.length; i++) {
+                var s_1 = exprCompareFn(a.args[i], b.args[i]);
+                if (s_1) {
+                    return s_1;
+                }
+            }
+        }
+        else if ('index' in a && 'index' in b) {
+            // highest stack element first
+            return a.index - b.index;
+        }
+        else if (a instanceof Uint8Array && b instanceof Uint8Array) {
+            return Util.bufferCompare(a, b);
+        }
+        return exprPriority[exprType(b)] - exprPriority[exprType(a)];
+    }
+    function normalizeExprs(exprs) {
+        exprs.sort(exprCompareFn);
+        for (var _i = 0, exprs_1 = exprs; _i < exprs_1.length; _i++) {
+            var expr = exprs_1[_i];
+            if ('opcode' in expr &&
+                ![
+                    opcodes.OP_CHECKMULTISIG,
+                    opcodes.OP_CHECKSIG,
+                    opcodes.OP_GREATERTHAN,
+                    opcodes.OP_GREATERTHANOREQUAL,
+                    opcodes.OP_LESSTHAN,
+                    opcodes.OP_LESSTHANOREQUAL,
+                    opcodes.OP_SUB,
+                    opcodes.OP_WITHIN
+                ].includes(expr.opcode)) {
+                normalizeExprs(expr.args);
+            }
+        }
+    }
+    Expr.normalizeExprs = normalizeExprs;
+    function evalExpr(expr) {
+        /*
+        // TODO
+        if (expr instanceof Uint8Array) {
+            return ScriptConv.Bool.decode(expr);
+        }
+        */
+        if ('opcode' in expr) {
+            switch (expr.opcode) {
+                case opcodes.OP_EQUAL: {
+                    var _a = expr.args, a1 = _a[0], a2 = _a[1];
+                    if (a1 instanceof Uint8Array && a2 instanceof Uint8Array) {
+                        return ScriptConv.Bool.encode(!Util.bufferCompare(a1, a2));
+                    }
+                    break;
+                }
+                case opcodes.INTERNAL_NOT:
+                case opcodes.OP_NOT: {
+                    if (expr.args[0] instanceof Uint8Array) {
+                        return ScriptConv.Bool.not(expr.args[0]);
+                    }
+                    var arg = expr.args[0];
+                    if ('opcode' in arg && arg.opcode === opcodes.OP_CHECKSIG) {
+                        return { opcode: opcodes.OP_EQUAL, args: [arg.args[0], ScriptConv.Bool.FALSE] };
+                    }
+                    break;
+                }
+                /*
+                case opcodes.OP_CHECKMULTISIG: {
+                    const l = expr.args.length;
+                    const k = (<Uint8Array>expr.args[l - 1])[0];
+                    const s = (<Uint8Array>expr.args[l - k - 1])[0];
+                    if (k === s) {
+                        const output: Expr[] = [];
+                        for (let i = 0; i < k; i++) {
+                            output.push({
+                                opcode: opcodes.OP_CHECKSIG,
+                                args: [ expr.args[l - i - k - 3], expr.args[l - i - 2] ]
+                            });
+                        }
+                        return output;
+                    }
+                    break;
+                }
+                */
+            }
+        }
+    }
+    Expr.evalExpr = evalExpr;
+})(Expr || (Expr = {}));
 var Hash;
 (function (Hash) {
     /** sha1(data) */
@@ -730,34 +927,41 @@ var Hash;
         });
     }
     Hash.hash160 = hash160;
-    var tags = ['TapLeaf', 'TapBranch'];
     var tagHashes = {};
-    var _loop_1 = function (t) {
-        crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function (buf) {
-            var tag = new Uint8Array(64);
-            var hash = new Uint8Array(buf);
-            tag.set(hash);
-            tag.set(hash, 32);
-            tagHashes[t] = tag;
+    function getTagHash(t) {
+        return __awaiter(this, void 0, void 0, function () {
+            var tagHash;
+            return __generator(this, function (_a) {
+                tagHash = tagHashes[t];
+                if (!tagHash) {
+                    tagHash = tagHashes[t] = crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function (buf) {
+                        var tag = new Uint8Array(64);
+                        var hash = new Uint8Array(buf);
+                        tag.set(hash);
+                        tag.set(hash, 32);
+                        return tag;
+                    });
+                }
+                return [2 /*return*/, tagHash];
+            });
         });
-    };
-    for (var _i = 0, tags_1 = tags; _i < tags_1.length; _i++) {
-        var t = tags_1[_i];
-        _loop_1(t);
     }
     /** sha256(sha256(tag) || sha256(tag) || data) */
     function sha256tagged(tag, data) {
         return __awaiter(this, void 0, void 0, function () {
-            var dat, _a;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
+            var dat, _a, _b, _c;
+            return __generator(this, function (_d) {
+                switch (_d.label) {
                     case 0:
                         dat = new Uint8Array(64 + data.length);
-                        dat.set(tagHashes[tag]);
+                        _b = (_a = dat).set;
+                        return [4 /*yield*/, getTagHash(tag)];
+                    case 1:
+                        _b.apply(_a, [_d.sent()]);
                         dat.set(data, 64);
-                        _a = Uint8Array.bind;
+                        _c = Uint8Array.bind;
                         return [4 /*yield*/, crypto.subtle.digest('SHA-256', dat)];
-                    case 1: return [2 /*return*/, new (_a.apply(Uint8Array, [void 0, _b.sent()]))()];
+                    case 2: return [2 /*return*/, new (_c.apply(Uint8Array, [void 0, _d.sent()]))()];
                 }
             });
         });
@@ -913,62 +1117,126 @@ var html = {
     analysis: document.getElementById('analysis'),
     scriptVersion: document.getElementById('script-version'),
     scriptRules: document.getElementById('script-rules'),
-    webcryptoError: document.getElementById('webcrypto-error')
+    webcryptoError: document.getElementById('webcrypto-error'),
+    chainImport: document.getElementById('chain-import'),
+    chainImportButton: document.getElementById('chain-import-button')
 };
 html.webcryptoError.hidden = window.isSecureContext;
-['keydown', 'keypress', 'keyup'].forEach(function (a) {
-    html.asm.addEventListener(a, function () {
-        try {
-            var hex = (html.hex.innerHTML = asmtohex(html.asm.innerText));
-            runAnalyzer(parseHexScript(hex));
-            html.asmError.innerText = '';
-        }
-        catch (e) {
-            if (typeof e === 'string') {
-                html.asmError.innerText = e;
-            }
-            else {
-                throw e;
-            }
-        }
-    });
-    html.hex.addEventListener(a, function () {
-        try {
-            var script = parseHexScript(html.hex.innerText);
-            html.asm.innerHTML = '';
-            scriptToAsm(script).forEach(function (e) {
-                var span = document.createElement('span');
-                span.innerText = e.s;
-                span.classList.add("script-".concat(OpcodeType[e.t].toLowerCase()));
-                html.asm.appendChild(span);
-                html.asm.appendChild(document.createElement('br'));
-            });
-            runAnalyzer(script);
-            html.hexError.innerText = '';
-        }
-        catch (e) {
-            if (typeof e === 'string') {
-                html.hexError.innerText = e;
-            }
-            else {
-                throw e;
-            }
-        }
-    });
+['keydown', 'keypress', 'keyup'].forEach(function (evType) {
+    html.asm.addEventListener(evType, asmUpdate);
+    html.hex.addEventListener(evType, hexUpdate);
 });
+function asmUpdate() {
+    try {
+        var hex = (html.hex.innerHTML = asmtohex(html.asm.innerText));
+        runAnalyzer(parseHexScript(hex));
+        html.hexError.innerText = '';
+        html.asmError.innerText = '';
+    }
+    catch (e) {
+        if (typeof e === 'string') {
+            html.asmError.innerText = e;
+        }
+        else {
+            throw e;
+        }
+    }
+}
+function hexUpdate() {
+    try {
+        var script = parseHexScript(html.hex.innerText);
+        html.asm.innerHTML = '';
+        scriptToAsm(script).forEach(function (e) {
+            var span = document.createElement('span');
+            span.innerText = e.s;
+            span.classList.add("script-".concat(OpcodeType[e.t].toLowerCase()));
+            html.asm.appendChild(span);
+            html.asm.appendChild(document.createElement('br'));
+        });
+        runAnalyzer(script);
+        html.asmError.innerText = '';
+        html.hexError.innerText = '';
+    }
+    catch (e) {
+        if (typeof e === 'string') {
+            html.hexError.innerText = e;
+        }
+        else {
+            throw e;
+        }
+    }
+}
 function runAnalyzer(script) {
     try {
-        ScriptAnalyzer.analyzeScript(script);
+        html.analysis.innerText = ScriptAnalyzer.analyzeScript(script);
     }
     catch (e) {
         console.error('ScriptAnalyzer error', e);
     }
 }
+html.chainImportButton.addEventListener('click', function (e) {
+    var address = html.chainImport.value;
+    getScript(address).then(function (hex) {
+        html.hex.innerHTML = hex;
+        hexUpdate();
+    });
+});
+var ScriptVersion;
+(function (ScriptVersion) {
+    ScriptVersion[ScriptVersion["LEGACY"] = 0] = "LEGACY";
+    ScriptVersion[ScriptVersion["SEGWITV0"] = 1] = "SEGWITV0";
+    ScriptVersion[ScriptVersion["SEGWITV1"] = 2] = "SEGWITV1";
+})(ScriptVersion || (ScriptVersion = {}));
 function getScriptVersion() {
     return html.scriptVersion.selectedIndex;
 }
+var ScriptRules;
+(function (ScriptRules) {
+    ScriptRules[ScriptRules["ALL"] = 0] = "ALL";
+    ScriptRules[ScriptRules["CONSENSUS_ONLY"] = 1] = "CONSENSUS_ONLY";
+})(ScriptRules || (ScriptRules = {}));
 function getScriptRules() {
     return html.scriptRules.selectedIndex;
+}
+var apiURL = 'https://mempool.space';
+function get(url) {
+    return new Promise(function (resolve) {
+        var req = new XMLHttpRequest();
+        req.addEventListener('load', function () {
+            resolve(this.responseText);
+        });
+        req.open('GET', url);
+        req.send();
+    });
+}
+function getScript(address) {
+    return __awaiter(this, void 0, void 0, function () {
+        var txs, _a, _b, _i, txs_1, tx, _c, _d, input;
+        return __generator(this, function (_e) {
+            switch (_e.label) {
+                case 0:
+                    _b = (_a = JSON).parse;
+                    return [4 /*yield*/, get("".concat(apiURL, "/api/address/").concat(address, "/txs"))];
+                case 1:
+                    txs = _b.apply(_a, [_e.sent()]);
+                    for (_i = 0, txs_1 = txs; _i < txs_1.length; _i++) {
+                        tx = txs_1[_i];
+                        for (_c = 0, _d = tx.vin; _c < _d.length; _c++) {
+                            input = _d[_c];
+                            if (input.prevout.scriptpubkey_address !== address) {
+                                continue;
+                            }
+                            switch (input.prevout.scriptpubkey_type) {
+                                case 'v0_p2wsh':
+                                    return [2 /*return*/, input.witness[input.witness.length - 1]];
+                            }
+                        }
+                    }
+                    // TODO message
+                    throw new Error('error');
+            }
+        });
+    });
 }
 var _a;
 var opcodes = {
@@ -1268,6 +1536,21 @@ function scriptToAsm(script) {
     }
     return asm;
 }
+var OpcodeType;
+(function (OpcodeType) {
+    OpcodeType[OpcodeType["DATA"] = 0] = "DATA";
+    OpcodeType[OpcodeType["NUMBER"] = 1] = "NUMBER";
+    OpcodeType[OpcodeType["CONSTANT"] = 2] = "CONSTANT";
+    OpcodeType[OpcodeType["FLOW"] = 3] = "FLOW";
+    OpcodeType[OpcodeType["STACK"] = 4] = "STACK";
+    OpcodeType[OpcodeType["SPLICE"] = 5] = "SPLICE";
+    OpcodeType[OpcodeType["BITWISE"] = 6] = "BITWISE";
+    OpcodeType[OpcodeType["ARITHMETIC"] = 7] = "ARITHMETIC";
+    OpcodeType[OpcodeType["CRYPTO"] = 8] = "CRYPTO";
+    OpcodeType[OpcodeType["LOCKTIME"] = 9] = "LOCKTIME";
+    OpcodeType[OpcodeType["DISABLED"] = 10] = "DISABLED";
+    OpcodeType[OpcodeType["INVALID"] = 11] = "INVALID";
+})(OpcodeType || (OpcodeType = {}));
 function opcodeType(op) {
     if (disabledOpcodes.includes(op)) {
         return OpcodeType.DISABLED;
@@ -1301,6 +1584,38 @@ function opcodeType(op) {
     }
     return OpcodeType.INVALID;
 }
+/*
+
+TODO maybe flags from bitcoin core
+
+MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_P2SH
+
+consensus:
+MANDATORY_SCRIPT_VERIFY_FLAGS
+
+relay:
+MANDATORY_SCRIPT_VERIFY_FLAGS
+SCRIPT_VERIFY_DERSIG
+SCRIPT_VERIFY_STRICTENC
+SCRIPT_VERIFY_MINIMALDATA
+SCRIPT_VERIFY_NULLDUMMY
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS
+SCRIPT_VERIFY_CLEANSTACK
+SCRIPT_VERIFY_MINIMALIF
+SCRIPT_VERIFY_NULLFAIL
+SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY
+SCRIPT_VERIFY_CHECKSEQUENCEVERIFY
+SCRIPT_VERIFY_LOW_S
+SCRIPT_VERIFY_WITNESS
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM
+SCRIPT_VERIFY_WITNESS_PUBKEYTYPE
+SCRIPT_VERIFY_CONST_SCRIPTCODE
+SCRIPT_VERIFY_TAPROOT
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION
+SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_PUBKEYTYPE
+
+*/
 // From the Bitcoin Core source code, files src/script/script_error.{h,cpp} at commit b1a2021f78099c17360dc2179cbcb948059b5969
 // Edited for TypeScript use
 // Orignal Bitcoin Core copyright header:
@@ -1561,47 +1876,6 @@ var ScriptConv;
         Bool.not = not;
     })(Bool = ScriptConv.Bool || (ScriptConv.Bool = {}));
 })(ScriptConv || (ScriptConv = {}));
-var ScriptVersion;
-(function (ScriptVersion) {
-    ScriptVersion[ScriptVersion["LEGACY"] = 0] = "LEGACY";
-    ScriptVersion[ScriptVersion["SEGWITV0"] = 1] = "SEGWITV0";
-    ScriptVersion[ScriptVersion["SEGWITV1"] = 2] = "SEGWITV1";
-})(ScriptVersion || (ScriptVersion = {}));
-var ScriptRules;
-(function (ScriptRules) {
-    ScriptRules[ScriptRules["ALL"] = 0] = "ALL";
-    ScriptRules[ScriptRules["CONSENSUS_ONLY"] = 1] = "CONSENSUS_ONLY";
-})(ScriptRules || (ScriptRules = {}));
-var OpcodeType;
-(function (OpcodeType) {
-    OpcodeType[OpcodeType["DATA"] = 0] = "DATA";
-    OpcodeType[OpcodeType["NUMBER"] = 1] = "NUMBER";
-    OpcodeType[OpcodeType["CONSTANT"] = 2] = "CONSTANT";
-    OpcodeType[OpcodeType["FLOW"] = 3] = "FLOW";
-    OpcodeType[OpcodeType["STACK"] = 4] = "STACK";
-    OpcodeType[OpcodeType["SPLICE"] = 5] = "SPLICE";
-    OpcodeType[OpcodeType["BITWISE"] = 6] = "BITWISE";
-    OpcodeType[OpcodeType["ARITHMETIC"] = 7] = "ARITHMETIC";
-    OpcodeType[OpcodeType["CRYPTO"] = 8] = "CRYPTO";
-    OpcodeType[OpcodeType["LOCKTIME"] = 9] = "LOCKTIME";
-    OpcodeType[OpcodeType["DISABLED"] = 10] = "DISABLED";
-    OpcodeType[OpcodeType["INVALID"] = 11] = "INVALID";
-})(OpcodeType || (OpcodeType = {}));
-// unused
-var ElementType;
-(function (ElementType) {
-    /** Only for minimal encoded booleans. Has 2 possible values: <> and <01> */
-    ElementType[ElementType["bool"] = 0] = "bool";
-    /** Any stack element not larger than 4 bytes */
-    ElementType[ElementType["int"] = 1] = "int";
-    /** Any stack element not larger than 5 bytes */
-    ElementType[ElementType["uint"] = 2] = "uint";
-    /** Any stack element */
-    ElementType[ElementType["bytes"] = 3] = "bytes";
-})(ElementType || (ElementType = {}));
-function isElementType(type, test) {
-    return typeof test === 'number' && test in ElementType && test <= type;
-}
 var Util;
 (function (Util) {
     function scriptElemToHex(buf) {
@@ -1654,25 +1928,6 @@ var Util;
         return parseInt(bufferToHex(buf.slice().reverse()), 16);
     }
     Util.intDecodeLE = intDecodeLE;
-    function exprToString(e) {
-        if ('opcode' in e) {
-            var args = e.args.map(exprToString);
-            if (e.opcode === opcodes.INTERNAL_NOT && args.length === 1) {
-                return "!(".concat(args, ")");
-            }
-            else if (e.opcode === opcodes.OP_EQUAL && args.length === 2) {
-                return "(".concat(args[0], " == ").concat(args[1], ")");
-            }
-            return "".concat((opcodeName(e.opcode) || 'UNKNOWN').replace(/^OP_/, ''), "(").concat(args, ")");
-        }
-        else if ('var' in e) {
-            return "<input".concat(e["var"], ">");
-        }
-        else {
-            return scriptElemToHex(e);
-        }
-    }
-    Util.exprToString = exprToString;
     /** Returns true if at least 1 element of the first list is present in the second list */
     function overlap(list1, list2) {
         for (var _i = 0, list1_1 = list1; _i < list1_1.length; _i++) {
@@ -1684,89 +1939,4 @@ var Util;
         return false;
     }
     Util.overlap = overlap;
-    function exprEqual(a, b) {
-        if ('opcode' in a && 'opcode' in b) {
-            if (a.args.length !== b.args.length) {
-                return false;
-            }
-            for (var i = 0; i < a.args.length; i++) {
-                if (!exprEqual(a.args[i], b.args[i])) {
-                    return false;
-                }
-            }
-            return a.opcode === b.opcode;
-        }
-        else if ('var' in a && 'var' in b) {
-            return a["var"] === b["var"];
-        }
-        else if (a instanceof Uint8Array && b instanceof Uint8Array) {
-            return !bufferCompare(a, b);
-        }
-        return false;
-    }
-    Util.exprEqual = exprEqual;
-    var exprPriority = {
-        "var": 2,
-        opcode: 1,
-        value: 0
-    };
-    function exprType(expr) {
-        if ('opcode' in expr) {
-            return 'opcode';
-        }
-        else if ('var' in expr) {
-            return 'var';
-        }
-        else {
-            return 'value';
-        }
-    }
-    function exprCompareFn(a, b) {
-        if ('opcode' in a && 'opcode' in b) {
-            // smallest opcode first
-            var s = a.opcode - b.opcode;
-            if (s) {
-                return s;
-            }
-            // only for OP_CHECKMULTISIG (?)
-            var ldiff = a.args.length - b.args.length;
-            if (ldiff) {
-                return ldiff;
-            }
-            for (var i = 0; i < a.args.length; i++) {
-                var s_1 = exprCompareFn(a.args[i], b.args[i]);
-                if (s_1) {
-                    return s_1;
-                }
-            }
-        }
-        else if ('var' in a && 'var' in b) {
-            // highest stack element first
-            return a["var"] - b["var"];
-        }
-        else if (a instanceof Uint8Array && b instanceof Uint8Array) {
-            return bufferCompare(a, b);
-        }
-        return exprPriority[exprType(b)] - exprPriority[exprType(a)];
-    }
-    function normalizeExprs(exprs) {
-        exprs.sort(exprCompareFn);
-        for (var _i = 0, exprs_1 = exprs; _i < exprs_1.length; _i++) {
-            var expr = exprs_1[_i];
-            if ('opcode' in expr &&
-                ![
-                    opcodes.OP_CHECKMULTISIG,
-                    opcodes.OP_CHECKSIG,
-                    opcodes.OP_GREATERTHAN,
-                    opcodes.OP_GREATERTHANOREQUAL,
-                    opcodes.OP_LESSTHAN,
-                    opcodes.OP_LESSTHANOREQUAL,
-                    opcodes.OP_SUB,
-                    opcodes.OP_WITHIN
-                ].includes(expr.opcode)) {
-                normalizeExprs(expr.args);
-            }
-        }
-    }
-    Util.normalizeExprs = normalizeExprs;
 })(Util || (Util = {}));

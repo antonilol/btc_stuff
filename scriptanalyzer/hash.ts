@@ -19,22 +19,25 @@ namespace Hash {
 		return ripemd160(new Uint8Array(await crypto.subtle.digest('SHA-256', data)));
 	}
 
-	const tags = [ 'TapLeaf', 'TapBranch' ];
-	const tagHashes: { [tag: typeof tags[number]]: Uint8Array } = {};
-	for (const t of tags) {
-		crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(buf => {
-			const tag = new Uint8Array(64);
-			const hash = new Uint8Array(buf);
-			tag.set(hash);
-			tag.set(hash, 32);
-			tagHashes[t] = tag;
-		});
+	const tagHashes: { [tag: string]: Promise<Uint8Array> } = {};
+	async function getTagHash(t: string): Promise<Uint8Array> {
+		let tagHash = tagHashes[t];
+		if (!tagHash) {
+			tagHash = tagHashes[t] = crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(buf => {
+				const tag = new Uint8Array(64);
+				const hash = new Uint8Array(buf);
+				tag.set(hash);
+				tag.set(hash, 32);
+				return tag;
+			});
+		}
+		return tagHash;
 	}
 
 	/** sha256(sha256(tag) || sha256(tag) || data) */
-	export async function sha256tagged(tag: typeof tags[number], data: Uint8Array): Promise<Uint8Array> {
+	export async function sha256tagged(tag: string, data: Uint8Array): Promise<Uint8Array> {
 		const dat = new Uint8Array(64 + data.length);
-		dat.set(tagHashes[tag]);
+		dat.set(await getTagHash(tag));
 		dat.set(data, 64);
 		return new Uint8Array(await crypto.subtle.digest('SHA-256', dat));
 	}

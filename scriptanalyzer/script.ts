@@ -52,6 +52,8 @@ function asmtohex(asm: string): string {
 	return script;
 }
 
+type Script = (Uint8Array | number)[];
+
 function parseHexScript(hex: string): Script {
 	const v = hex.replace(/\s+/g, '').toLowerCase();
 	if (!/^[0-9a-f]*$/.test(v)) {
@@ -119,6 +121,21 @@ function scriptToAsm(script: Script): { s: string; t: OpcodeType }[] {
 	return asm;
 }
 
+enum OpcodeType {
+	DATA,
+	NUMBER,
+	CONSTANT,
+	FLOW,
+	STACK,
+	SPLICE,
+	BITWISE,
+	ARITHMETIC,
+	CRYPTO,
+	LOCKTIME,
+	DISABLED,
+	INVALID
+}
+
 function opcodeType(op: number): OpcodeType {
 	if (disabledOpcodes.includes(op)) {
 		return OpcodeType.DISABLED;
@@ -143,3 +160,36 @@ function opcodeType(op: number): OpcodeType {
 	}
 	return OpcodeType.INVALID;
 }
+
+/*
+
+TODO maybe flags from bitcoin core
+
+MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_P2SH
+
+consensus:
+MANDATORY_SCRIPT_VERIFY_FLAGS
+
+relay:
+MANDATORY_SCRIPT_VERIFY_FLAGS
+SCRIPT_VERIFY_DERSIG
+SCRIPT_VERIFY_STRICTENC
+SCRIPT_VERIFY_MINIMALDATA
+SCRIPT_VERIFY_NULLDUMMY
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS
+SCRIPT_VERIFY_CLEANSTACK
+SCRIPT_VERIFY_MINIMALIF
+SCRIPT_VERIFY_NULLFAIL
+SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY
+SCRIPT_VERIFY_CHECKSEQUENCEVERIFY
+SCRIPT_VERIFY_LOW_S
+SCRIPT_VERIFY_WITNESS
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM
+SCRIPT_VERIFY_WITNESS_PUBKEYTYPE
+SCRIPT_VERIFY_CONST_SCRIPTCODE
+SCRIPT_VERIFY_TAPROOT
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION
+SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS
+SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_PUBKEYTYPE
+
+*/
