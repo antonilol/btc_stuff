@@ -34,7 +34,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     function verb(n) { return function (v) { return step([n, v]); }; }
     function step(op) {
         if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
+        while (g && (g = 0, op[0] && (_ = 0)), _) try {
             if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
             if (y = 0, t) op = [op[0] & 2, t.value];
             switch (op[0]) {
@@ -74,7 +74,7 @@ var ScriptAnalyzer = /** @class */ (function () {
             this.rules = arg.rules;
             this.stack = arg.stack.slice();
             this.altstack = arg.altstack.slice();
-            this.spendingConditions = arg.spendingConditions.slice();
+            this.spendingConditions = Util.clone(arg.spendingConditions);
             this.stackIndex = arg.stackIndex;
             this.script = arg.script;
             this.scriptOffset = arg.scriptOffset;
@@ -109,64 +109,94 @@ var ScriptAnalyzer = /** @class */ (function () {
         }
         var analyzer = new ScriptAnalyzer(script);
         analyzer.analyze();
-        ScriptAnalyzer.cleanupConditions(analyzer.branches);
+        analyzer.cleanupConditions();
         if (!analyzer.branches.length) {
             return 'Script is unspendable';
         }
         var s = 'Spending paths:';
         for (var _a = 0, _b = analyzer.branches; _a < _b.length; _a++) {
             var a = _b[_a];
-            var locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement);
-            var sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement);
-            s += "\n\n\t\t\t\tConditions: ".concat(a.spendingConditions.map(function (expr) { return Expr.exprToString(expr); }).join(' && '), "\n\t\t\t\tLocktime requirement: ").concat(locktime !== null && locktime !== void 0 ? locktime : 'no', "\n\t\t\t\tSequence requirement: ").concat(sequence !== null && sequence !== void 0 ? sequence : (locktime ? 'non final (not 0xffffffff)' : 'no'));
+            var locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement, function (d) { return new Date(d).toString(); });
+            var sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement, Util.relativeTimelockToString);
+            s += "\n\n\t\t\t\tStack item requirements:\t\t\t\t".concat(a.spendingConditions.length ? '\n' + a.spendingConditions.map(function (expr) { return Expr.toString(expr); }).join('\n') : ' none', "\n\t\t\t\tLocktime requirement: ").concat(locktime !== null && locktime !== void 0 ? locktime : 'no', "\n\t\t\t\tSequence requirement: ").concat(sequence !== null && sequence !== void 0 ? sequence : (locktime ? 'non-final (not 0xffffffff)' : 'no'));
         }
         return s;
     };
-    ScriptAnalyzer.locktimeRequirementToString = function (l) {
+    ScriptAnalyzer.locktimeRequirementToString = function (l, timeToString) {
         if (!(l.exprs.length || 'type' in l)) {
             return;
         }
-        return "type: ".concat('type' in l ? l.type : 'unknown', ", minValue: ").concat('type' in l ? l.minValue : 'unknown').concat(l.exprs.length ? ", stack elements: ".concat(l.exprs.map(function (expr) { return Expr.exprToString(expr); }).join(', ')) : '');
+        var type = 'type' in l ? l.type : 'unknown';
+        return "type: ".concat(type, ", minValue: ").concat('type' in l ? (type === 'time' ? timeToString(l.minValue) : l.minValue) : 'unknown').concat(l.exprs.length ? ", stack elements: ".concat(l.exprs.map(function (expr) { return Expr.toString(expr); }).join(', ')) : '');
     };
-    ScriptAnalyzer.cleanupConditions = function (branches) {
-        for (var i = 0; i < branches.length; i++) {
-            var exprs = branches[i].spendingConditions;
+    ScriptAnalyzer.prototype.cleanupConditions = function () {
+        for (var i = 0; i < this.branches.length; i++) {
+            var exprs = this.branches[i].spendingConditions;
             Expr.normalizeExprs(exprs);
             exprs: for (var j = 0; j < exprs.length; j++) {
                 var expr = exprs[j];
-                for (var k = j + 1; k < exprs.length; k++) {
-                    var expr2 = exprs[k];
-                    if (Expr.exprEqual(expr, expr2)) {
-                        exprs.splice(k, 1);
-                        k--;
-                    }
-                    else if (('opcode' in expr &&
-                        (expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
-                        Expr.exprEqual(expr.args[0], exprs[k])) ||
-                        ('opcode' in expr2 &&
-                            (expr2.opcode === opcodes.OP_NOT || expr2.opcode === opcodes.INTERNAL_NOT) &&
-                            Expr.exprEqual(expr, expr2.args[0]))) {
-                        branches.splice(i, 1);
-                        i--;
-                        break exprs;
-                    }
-                }
-                var res = Expr.evalExpr(expr);
-                if (typeof res === 'boolean') {
-                    if (res) {
+                if (expr instanceof Uint8Array) {
+                    if (ScriptConv.Bool.decode(expr)) {
                         exprs.splice(j, 1);
                         j--;
-                        // continue;
+                        continue;
                     }
                     else {
-                        branches.splice(i, 1);
+                        this.branches.splice(i, 1);
                         i--;
                         break;
                     }
                 }
-                else if (res) {
-                    exprs[j] = res;
-                    j--;
+                for (var k = 0; k < exprs.length; k++) {
+                    if (j === k) {
+                        continue;
+                    }
+                    var expr2 = exprs[k];
+                    if (Expr.equal(expr, expr2)) {
+                        // (a && a) == a
+                        exprs.splice(k, 1);
+                        if (j > k) {
+                            j--;
+                        }
+                        k--;
+                    }
+                    else if ('opcode' in expr &&
+                        (expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
+                        Expr.equal(expr.args[0], expr2)) {
+                        // (a && !a) == 0
+                        this.branches.splice(i, 1);
+                        i--;
+                        break exprs;
+                    }
+                    else if ('opcode' in expr &&
+                        expr.opcode === opcodes.OP_EQUAL &&
+                        Expr.priority(expr.args[1]) < Expr.priority(expr.args[0])) {
+                        // (a == b && f(a)) -> f(b)
+                        var res = Expr.replaceAllIn(expr.args[0], expr.args[1], expr2);
+                        if (!Expr.equal(expr2, res)) {
+                            exprs[k] = res;
+                            j = k - 1;
+                            continue exprs;
+                        }
+                    }
+                }
+                try {
+                    var res = Expr.evalExpr(this, expr);
+                    if (res) {
+                        exprs[j] = res;
+                        j--;
+                    }
+                }
+                catch (e) {
+                    if (typeof e === 'number') {
+                        console.log("DEBUG cleanupConditions: spending path returned error: ".concat(scriptErrorString(e)));
+                        this.branches.splice(i, 1);
+                        i--;
+                        break;
+                    }
+                    else {
+                        throw e;
+                    }
                 }
             }
         }
@@ -174,7 +204,7 @@ var ScriptAnalyzer = /** @class */ (function () {
     ScriptAnalyzer.prototype.analyze = function () {
         var error = this.analyzePath();
         if (error !== undefined) {
-            console.log("DEBUG: spending path returned error: ".concat(scriptErrorString(error)));
+            console.log("DEBUG analyze: spending path returned error: ".concat(scriptErrorString(error)));
             for (var i = 0; i < this.branches.length; i++) {
                 if (this.branches[i] === this) {
                     this.branches.splice(i, 1);
@@ -458,11 +488,13 @@ var ScriptAnalyzer = /** @class */ (function () {
                         }
                         var sigs = this.takeElements(scount.n);
                         var dummy = this.takeElements(1)[0];
-                        this.spendingConditions.push({
-                            opcode: opcodes.OP_EQUAL,
-                            args: [dummy, ScriptConv.Bool.FALSE],
-                            error: ScriptError.SCRIPT_ERR_SIG_NULLDUMMY
-                        });
+                        if (this.rules === ScriptRules.ALL) {
+                            this.spendingConditions.push({
+                                opcode: opcodes.OP_EQUAL,
+                                args: [dummy, ScriptConv.Bool.FALSE],
+                                error: ScriptError.SCRIPT_ERR_SIG_NULLDUMMY
+                            });
+                        }
                         this.stack.push({
                             opcode: opcodes.OP_CHECKMULTISIG,
                             args: __spreadArray(__spreadArray(__spreadArray(__spreadArray([], sigs, true), [ScriptConv.Int.encode(scount.n)], false), pks, true), [ScriptConv.Int.encode(kcount.n)], false)
@@ -561,7 +593,8 @@ var ScriptAnalyzer = /** @class */ (function () {
         if (!this.cs.empty()) {
             return ScriptError.SCRIPT_ERR_UNBALANCED_CONDITIONAL;
         }
-        if (this.stack.length > 1) {
+        if (this.stack.length > 1 &&
+            !(this.version === ScriptVersion.LEGACY && this.rules === ScriptRules.CONSENSUS_ONLY)) {
             return ScriptError.SCRIPT_ERR_CLEANSTACK;
         }
         if (!this.verify()) {
@@ -626,6 +659,108 @@ var ScriptAnalyzer = /** @class */ (function () {
     };
     return ScriptAnalyzer;
 }());
+var SIGHASH_DEFAULT = 0;
+var SIGHASH_ALL = 1;
+var SIGHASH_NONE = 2;
+var SIGHASH_SINGLE = 3;
+var SIGHASH_ANYONECANPAY = 128;
+/** hash types that can appear at the end of a signature (SIGHASH_DEFAULT can't) */
+var sigHashTypes = [
+    SIGHASH_ALL,
+    SIGHASH_NONE,
+    SIGHASH_SINGLE,
+    SIGHASH_ALL | SIGHASH_ANYONECANPAY,
+    SIGHASH_NONE | SIGHASH_ANYONECANPAY,
+    SIGHASH_SINGLE | SIGHASH_ANYONECANPAY
+];
+function pubkeyType(pubkey) {
+    if (pubkey.length === 33 && (pubkey[0] === 0x02 || pubkey[0] === 0x03)) {
+        return { valid: true, compressed: true };
+    }
+    else if (pubkey.length === 65 && pubkey[0] === 0x04) {
+        return { valid: true, compressed: false };
+    }
+    return { valid: false };
+}
+// The following function was copied from the Bitcoin Core source code, src/script/interpreter (lines 97-170) at b92d609fb25637ccda000e182da854d4b762eee9
+// Edited for TypeScript use
+// Orignal Bitcoin Core copyright header:
+// Copyright (c) 2009-2010 Satoshi Nakamoto
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/**
+ * A canonical signature exists of: <30> <total len> <02> <len R> <R> <02> <len S> <S> <hashtype>
+ * Where R and S are not negative (their first byte has its highest bit not set), and not
+ * excessively padded (do not start with a 0 byte, unless an otherwise negative number follows,
+ * in which case a single 0 byte is necessary and even required).
+ *
+ * See https://bitcointalk.org/index.php?topic=8392.msg127623#msg127623
+ *
+ * This function is consensus-critical since BIP66.
+ */
+function isValidSignatureEncoding(sig) {
+    // Format: 0x30 [total-length] 0x02 [R-length] [R] 0x02 [S-length] [S] [sighash]
+    // * total-length: 1-byte length descriptor of everything that follows,
+    //   excluding the sighash byte.
+    // * R-length: 1-byte length descriptor of the R value that follows.
+    // * R: arbitrary-length big-endian encoded R value. It must use the shortest
+    //   possible encoding for a positive integer (which means no null bytes at
+    //   the start, except a single one when the next byte has its highest bit set).
+    // * S-length: 1-byte length descriptor of the S value that follows.
+    // * S: arbitrary-length big-endian encoded S value. The same rules apply.
+    // * sighash: 1-byte value indicating what data is hashed (not part of the DER
+    //   signature)
+    // Minimum and maximum size constraints.
+    if (sig.length < 9)
+        return false;
+    if (sig.length > 73)
+        return false;
+    // A signature is of type 0x30 (compound).
+    if (sig[0] != 0x30)
+        return false;
+    // Make sure the length covers the entire signature.
+    if (sig[1] != sig.length - 3)
+        return false;
+    // Extract the length of the R element.
+    var lenR = sig[3];
+    // Make sure the length of the S element is still inside the signature.
+    if (5 + lenR >= sig.length)
+        return false;
+    // Extract the length of the S element.
+    var lenS = sig[5 + lenR];
+    // Verify that the length of the signature matches the sum of the length
+    // of the elements.
+    if (lenR + lenS + 7 != sig.length)
+        return false;
+    // Check whether the R element is an integer.
+    if (sig[2] != 0x02)
+        return false;
+    // Zero-length integers are not allowed for R.
+    if (lenR == 0)
+        return false;
+    // Negative numbers are not allowed for R.
+    if (sig[4] & 0x80)
+        return false;
+    // Null bytes at the start of R are not allowed, unless R would
+    // otherwise be interpreted as a negative number.
+    if (lenR > 1 && sig[4] == 0x00 && !(sig[5] & 0x80))
+        return false;
+    // Check whether the S element is an integer.
+    if (sig[lenR + 4] != 0x02)
+        return false;
+    // Zero-length integers are not allowed for S.
+    if (lenS == 0)
+        return false;
+    // Negative numbers are not allowed for S.
+    if (sig[lenR + 6] & 0x80)
+        return false;
+    // Null bytes at the start of S are not allowed, unless S would otherwise be
+    // interpreted as a negative number.
+    if (lenS > 1 && sig[lenR + 6] == 0x00 && !(sig[lenR + 7] & 0x80))
+        return false;
+    return true;
+}
 // From the Bitcoin Core source code, file src/script/interpreter.cpp at commit b1a2021f78099c17360dc2179cbcb948059b5969
 // Edited for TypeScript use
 // Orignal Bitcoin Core copyright header:
@@ -707,14 +842,21 @@ var ConditionStack = /** @class */ (function () {
 }());
 var Expr;
 (function (Expr) {
-    function exprToString(e) {
+    function toString(e, depth) {
+        if (depth === void 0) { depth = 0; }
         if ('opcode' in e) {
-            var args = e.args.map(exprToString);
+            var args = e.args.map(function (a) { return toString(a, depth + 1); });
             if (e.opcode === opcodes.INTERNAL_NOT && args.length === 1) {
                 return "!(".concat(args, ")");
             }
             else if (e.opcode === opcodes.OP_EQUAL && args.length === 2) {
-                return "(".concat(args[0], " == ").concat(args[1], ")");
+                var s = "".concat(args[0], " == ").concat(args[1]);
+                if (depth) {
+                    return "(".concat(s, ")");
+                }
+                else {
+                    return s;
+                }
             }
             return "".concat((opcodeName(e.opcode) || 'UNKNOWN').replace(/^OP_/, ''), "(").concat(args, ")");
         }
@@ -725,14 +867,14 @@ var Expr;
             return Util.scriptElemToHex(e);
         }
     }
-    Expr.exprToString = exprToString;
-    function exprEqual(a, b) {
+    Expr.toString = toString;
+    function equal(a, b) {
         if ('opcode' in a && 'opcode' in b) {
             if (a.args.length !== b.args.length) {
                 return false;
             }
             for (var i = 0; i < a.args.length; i++) {
-                if (!exprEqual(a.args[i], b.args[i])) {
+                if (!equal(a.args[i], b.args[i])) {
                     return false;
                 }
             }
@@ -746,13 +888,8 @@ var Expr;
         }
         return false;
     }
-    Expr.exprEqual = exprEqual;
-    var exprPriority = {
-        stack: 2,
-        opcode: 1,
-        value: 0
-    };
-    function exprType(expr) {
+    Expr.equal = equal;
+    function type(expr) {
         if ('opcode' in expr) {
             return 'opcode';
         }
@@ -763,7 +900,17 @@ var Expr;
             return 'value';
         }
     }
-    function exprCompareFn(a, b) {
+    Expr.type = type;
+    var exprPriority = {
+        opcode: 2,
+        stack: 1,
+        value: 0
+    };
+    function priority(expr) {
+        return exprPriority[type(expr)];
+    }
+    Expr.priority = priority;
+    function compareFn(a, b) {
         if ('opcode' in a && 'opcode' in b) {
             // smallest opcode first
             var s = a.opcode - b.opcode;
@@ -776,7 +923,7 @@ var Expr;
                 return ldiff;
             }
             for (var i = 0; i < a.args.length; i++) {
-                var s_1 = exprCompareFn(a.args[i], b.args[i]);
+                var s_1 = compareFn(a.args[i], b.args[i]);
                 if (s_1) {
                     return s_1;
                 }
@@ -789,52 +936,117 @@ var Expr;
         else if (a instanceof Uint8Array && b instanceof Uint8Array) {
             return Util.bufferCompare(a, b);
         }
-        return exprPriority[exprType(b)] - exprPriority[exprType(a)];
+        return priority(b) - priority(a);
     }
     function normalizeExprs(exprs) {
-        exprs.sort(exprCompareFn);
+        exprs.sort(compareFn);
         for (var _i = 0, exprs_1 = exprs; _i < exprs_1.length; _i++) {
             var expr = exprs_1[_i];
-            if ('opcode' in expr &&
-                ![
-                    opcodes.OP_CHECKMULTISIG,
-                    opcodes.OP_CHECKSIG,
-                    opcodes.OP_GREATERTHAN,
-                    opcodes.OP_GREATERTHANOREQUAL,
-                    opcodes.OP_LESSTHAN,
-                    opcodes.OP_LESSTHANOREQUAL,
-                    opcodes.OP_SUB,
-                    opcodes.OP_WITHIN
-                ].includes(expr.opcode)) {
+            if ('opcode' in expr && !argumentOrderMatters.includes(expr.opcode)) {
                 normalizeExprs(expr.args);
             }
         }
     }
     Expr.normalizeExprs = normalizeExprs;
-    function evalExpr(expr) {
-        /*
-        // TODO
-        if (expr instanceof Uint8Array) {
-            return ScriptConv.Bool.decode(expr);
-        }
-        */
+    function evalExpr(ctx, expr, depth) {
+        if (depth === void 0) { depth = 0; }
+        expr = Util.clone(expr);
+        var changed = false;
         if ('opcode' in expr) {
+            for (var i = 0; i < expr.args.length; i++) {
+                var res = evalExpr(ctx, expr.args[i], depth + 1);
+                if (res) {
+                    expr.args[i] = res;
+                    changed = true;
+                }
+            }
             switch (expr.opcode) {
                 case opcodes.OP_EQUAL: {
                     var _a = expr.args, a1 = _a[0], a2 = _a[1];
                     if (a1 instanceof Uint8Array && a2 instanceof Uint8Array) {
                         return ScriptConv.Bool.encode(!Util.bufferCompare(a1, a2));
                     }
+                    else if ('opcode' in a1 &&
+                        returnsBoolean.includes(a1.opcode) &&
+                        a2 instanceof Uint8Array &&
+                        (a2.length === 0 || (a2.length === 1 && a2[0] === 1))) {
+                        if (ScriptConv.Bool.decode(a2)) {
+                            return a1;
+                        }
+                        else {
+                            return { opcode: opcodes.OP_NOT, args: [a1] };
+                        }
+                    }
                     break;
                 }
                 case opcodes.INTERNAL_NOT:
                 case opcodes.OP_NOT: {
-                    if (expr.args[0] instanceof Uint8Array) {
-                        return ScriptConv.Bool.not(expr.args[0]);
-                    }
                     var arg = expr.args[0];
-                    if ('opcode' in arg && arg.opcode === opcodes.OP_CHECKSIG) {
+                    if (arg instanceof Uint8Array) {
+                        if (expr.opcode === opcodes.OP_NOT && arg.length > 4) {
+                            throw ScriptError.SCRIPT_ERR_NUM_OVERFLOW;
+                        }
+                        return ScriptConv.Bool.not(arg);
+                    }
+                    if (depth === 0 && 'opcode' in arg && arg.opcode === opcodes.OP_CHECKSIG && ctx.rules === ScriptRules.ALL) {
+                        // assumes valid pubkey TODO fix
                         return { opcode: opcodes.OP_EQUAL, args: [arg.args[0], ScriptConv.Bool.FALSE] };
+                    }
+                    break;
+                }
+                case opcodes.OP_CHECKSIG: {
+                    var _b = expr.args, sig = _b[0], pubkey = _b[1];
+                    if (ctx.version === ScriptVersion.SEGWITV1) {
+                        if (pubkey instanceof Uint8Array) {
+                            if (pubkey.length === 0) {
+                                throw ScriptError.SCRIPT_ERR_PUBKEYTYPE;
+                            }
+                            else if (pubkey.length !== 32) {
+                                if (ctx.rules === ScriptRules.ALL) {
+                                    throw ScriptError.SCRIPT_ERR_DISCOURAGE_UPGRADABLE_PUBKEYTYPE;
+                                }
+                                else {
+                                    return ScriptConv.Bool.TRUE;
+                                }
+                            }
+                            if (sig instanceof Uint8Array) {
+                                if (sig.length === 0) {
+                                    return ScriptConv.Bool.FALSE;
+                                }
+                                else if (sig.length !== 64 && sig.length !== 65) {
+                                    throw ScriptError.SCRIPT_ERR_SCHNORR_SIG_SIZE;
+                                }
+                                else if (sig.length === 65 && !sigHashTypes.includes(sig[64])) {
+                                    throw ScriptError.SCRIPT_ERR_SCHNORR_SIG_HASHTYPE;
+                                }
+                            }
+                        }
+                    }
+                    else {
+                        if (pubkey instanceof Uint8Array) {
+                            // TODO CheckPubKeyEncoding without SCRIPT_VERIFY_STRICTENC?
+                            var type_1 = pubkeyType(pubkey);
+                            if (!type_1.valid) {
+                                throw ScriptError.SCRIPT_ERR_PUBKEYTYPE;
+                            }
+                            else if (!type_1.compressed && ctx.version === ScriptVersion.SEGWITV0 && ctx.rules === ScriptRules.ALL) {
+                                throw ScriptError.SCRIPT_ERR_WITNESS_PUBKEYTYPE;
+                            }
+                            if (sig instanceof Uint8Array) {
+                                if (sig.length === 0) {
+                                    return ScriptConv.Bool.FALSE;
+                                }
+                                if (ctx.rules === ScriptRules.ALL) {
+                                    // TODO low s
+                                    if (!isValidSignatureEncoding(sig)) {
+                                        throw ScriptError.SCRIPT_ERR_SIG_DER;
+                                    }
+                                    else if (!sigHashTypes.includes(sig[sig.length - 1])) {
+                                        throw ScriptError.SCRIPT_ERR_SIG_HASHTYPE;
+                                    }
+                                }
+                            }
+                        }
                     }
                     break;
                 }
@@ -858,8 +1070,22 @@ var Expr;
                 */
             }
         }
+        if (changed) {
+            return expr;
+        }
     }
     Expr.evalExpr = evalExpr;
+    /** Returns c with all a replaced with b */
+    function replaceAllIn(a, b, c) {
+        if (equal(a, c)) {
+            return b;
+        }
+        if ('opcode' in c) {
+            return __assign(__assign({}, Util.clone(c)), { args: c.args.map(function (e) { return replaceAllIn(a, b, e); }) });
+        }
+        return c;
+    }
+    Expr.replaceAllIn = replaceAllIn;
 })(Expr || (Expr = {}));
 var Hash;
 (function (Hash) {
@@ -1119,17 +1345,20 @@ var html = {
     scriptRules: document.getElementById('script-rules'),
     webcryptoError: document.getElementById('webcrypto-error'),
     chainImport: document.getElementById('chain-import'),
-    chainImportButton: document.getElementById('chain-import-button')
+    chainImportButton: document.getElementById('chain-import-button'),
+    chainImportError: document.getElementById('chain-import-error'),
+    chainImportURL: document.getElementById('chain-import-url')
 };
 html.webcryptoError.hidden = window.isSecureContext;
 ['keydown', 'keypress', 'keyup'].forEach(function (evType) {
     html.asm.addEventListener(evType, asmUpdate);
     html.hex.addEventListener(evType, hexUpdate);
 });
+var script = [];
 function asmUpdate() {
     try {
-        var hex = (html.hex.innerHTML = asmtohex(html.asm.innerText));
-        runAnalyzer(parseHexScript(hex));
+        var hex = (html.hex.innerText = asmtohex(html.asm.innerText));
+        script = parseHexScript(hex);
         html.hexError.innerText = '';
         html.asmError.innerText = '';
     }
@@ -1141,10 +1370,11 @@ function asmUpdate() {
             throw e;
         }
     }
+    runAnalyzer();
 }
 function hexUpdate() {
     try {
-        var script = parseHexScript(html.hex.innerText);
+        script = parseHexScript(html.hex.innerText);
         html.asm.innerHTML = '';
         scriptToAsm(script).forEach(function (e) {
             var span = document.createElement('span');
@@ -1153,7 +1383,6 @@ function hexUpdate() {
             html.asm.appendChild(span);
             html.asm.appendChild(document.createElement('br'));
         });
-        runAnalyzer(script);
         html.asmError.innerText = '';
         html.hexError.innerText = '';
     }
@@ -1165,8 +1394,9 @@ function hexUpdate() {
             throw e;
         }
     }
+    runAnalyzer();
 }
-function runAnalyzer(script) {
+function runAnalyzer() {
     try {
         html.analysis.innerText = ScriptAnalyzer.analyzeScript(script);
     }
@@ -1174,13 +1404,33 @@ function runAnalyzer(script) {
         console.error('ScriptAnalyzer error', e);
     }
 }
-html.chainImportButton.addEventListener('click', function (e) {
-    var address = html.chainImport.value;
-    getScript(address).then(function (hex) {
-        html.hex.innerHTML = hex;
-        hexUpdate();
+html.chainImportButton.addEventListener('click', function () { return __awaiter(void 0, void 0, void 0, function () {
+    var address, apiURL, script, e_1;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                address = html.chainImport.value;
+                apiURL = html.chainImportURL.value;
+                _a.label = 1;
+            case 1:
+                _a.trys.push([1, 3, , 4]);
+                return [4 /*yield*/, getScript(apiURL, address)];
+            case 2:
+                script = _a.sent();
+                return [3 /*break*/, 4];
+            case 3:
+                e_1 = _a.sent();
+                html.chainImportError.innerText = e_1 instanceof Error ? e_1.message : String(e_1);
+                return [2 /*return*/];
+            case 4:
+                html.chainImportError.innerText = '';
+                html.hex.innerText = script.hex;
+                html.scriptVersion.selectedIndex = script.version;
+                hexUpdate();
+                return [2 /*return*/];
+        }
     });
-});
+}); });
 var ScriptVersion;
 (function (ScriptVersion) {
     ScriptVersion[ScriptVersion["LEGACY"] = 0] = "LEGACY";
@@ -1198,18 +1448,23 @@ var ScriptRules;
 function getScriptRules() {
     return html.scriptRules.selectedIndex;
 }
-var apiURL = 'https://mempool.space';
+[html.scriptVersion, html.scriptRules].forEach(function (el) { return el.addEventListener('change', runAnalyzer); });
 function get(url) {
-    return new Promise(function (resolve) {
+    return new Promise(function (resolve, reject) {
         var req = new XMLHttpRequest();
         req.addEventListener('load', function () {
-            resolve(this.responseText);
+            if (this.status !== 200) {
+                reject(new Error("Received error ".concat(this.status, "\n").concat(this.statusText, ": ").concat(this.responseText)));
+            }
+            else {
+                resolve(this.responseText);
+            }
         });
         req.open('GET', url);
         req.send();
     });
 }
-function getScript(address) {
+function getScript(apiURL, address) {
     return __awaiter(this, void 0, void 0, function () {
         var txs, _a, _b, _i, txs_1, tx, _c, _d, input;
         return __generator(this, function (_e) {
@@ -1223,17 +1478,37 @@ function getScript(address) {
                         tx = txs_1[_i];
                         for (_c = 0, _d = tx.vin; _c < _d.length; _c++) {
                             input = _d[_c];
-                            if (input.prevout.scriptpubkey_address !== address) {
+                            if (!input.prevout || input.prevout.scriptpubkey_address !== address) {
                                 continue;
                             }
                             switch (input.prevout.scriptpubkey_type) {
                                 case 'v0_p2wsh':
-                                    return [2 /*return*/, input.witness[input.witness.length - 1]];
+                                    // witness script
+                                    return [2 /*return*/, { version: ScriptVersion.SEGWITV0, hex: input.witness[input.witness.length - 1] }];
+                                case 'p2sh':
+                                    if (input.inner_witnessscript_asm) {
+                                        // witness script wrapped in p2sh
+                                        return [2 /*return*/, { version: ScriptVersion.SEGWITV0, hex: input.witness[input.witness.length - 1] }];
+                                    }
+                                    else {
+                                        // redeem script
+                                        return [2 /*return*/, { version: ScriptVersion.LEGACY, hex: Util.bufferToHex(getRedeemScript(input.scriptsig)) }];
+                                    }
+                                case 'v1_p2tr':
+                                    if (input.witness.length >= 2 && input.witness[input.witness.length - 1].startsWith('50')) {
+                                        // remove annex
+                                        input.witness.pop();
+                                    }
+                                    if (input.witness.length >= 2) {
+                                        // tapscript
+                                        return [2 /*return*/, { version: ScriptVersion.SEGWITV1, hex: input.witness[input.witness.length - 2] }];
+                                    }
+                                    break;
                             }
+                            throw new Error('No wrapped script found');
                         }
                     }
-                    // TODO message
-                    throw new Error('error');
+                    throw new Error('No spending transaction found');
             }
         });
     });
@@ -1396,6 +1671,33 @@ var pushdataLength = (_a = {},
     _a[opcodes.OP_PUSHDATA2] = 2,
     _a[opcodes.OP_PUSHDATA4] = 4,
     _a);
+var returnsBoolean = [
+    opcodes.OP_EQUAL,
+    opcodes.OP_NOT,
+    opcodes.OP_0NOTEQUAL,
+    opcodes.OP_BOOLAND,
+    opcodes.OP_BOOLOR,
+    opcodes.OP_NUMEQUAL,
+    opcodes.OP_NUMNOTEQUAL,
+    opcodes.OP_LESSTHAN,
+    opcodes.OP_GREATERTHAN,
+    opcodes.OP_LESSTHANOREQUAL,
+    opcodes.OP_GREATERTHANOREQUAL,
+    opcodes.OP_WITHIN,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_CHECKMULTISIG,
+    opcodes.INTERNAL_NOT
+];
+var argumentOrderMatters = [
+    opcodes.OP_SUB,
+    opcodes.OP_LESSTHAN,
+    opcodes.OP_GREATERTHAN,
+    opcodes.OP_LESSTHANOREQUAL,
+    opcodes.OP_GREATERTHANOREQUAL,
+    opcodes.OP_WITHIN,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_CHECKMULTISIG
+];
 function opcodeName(op) {
     if (op < 0) {
         return;
@@ -1509,6 +1811,53 @@ function parseHexScript(hex) {
         }
     }
     return a;
+}
+function getRedeemScript(scriptSigHex) {
+    var v = scriptSigHex.replace(/\s+/g, '').toLowerCase();
+    if (!/^[0-9a-f]*$/.test(v)) {
+        throw 'Illegal characters in hex literal';
+    }
+    if (v.length & 1) {
+        throw 'Odd amount of characters in hex literal';
+    }
+    var bytes = Util.hexToBuffer(v);
+    for (var offset = 0; offset < bytes.length;) {
+        var b = bytes[offset++];
+        var op = opcodeName(b);
+        if (op) {
+            var n = pushdataLength[b];
+            if (n) {
+                var pushSize = bytes.subarray(offset, offset + n);
+                if (pushSize.length !== n) {
+                    throw "".concat(op, " with incomplete push length (SCRIPT_ERR_BAD_OPCODE)");
+                }
+                var l = Util.intDecodeLE(pushSize);
+                offset += n;
+                var data = bytes.subarray(offset, offset + l);
+                offset += l;
+                if (data.length !== l) {
+                    throw "Invalid length, expected ".concat(l, " but got ").concat(data.length, " (SCRIPT_ERR_BAD_OPCODE)");
+                }
+                if (offset === bytes.length) {
+                    return data;
+                }
+            }
+        }
+        else if (b <= 75) {
+            var data = bytes.subarray(offset, offset + b);
+            offset += b;
+            if (data.length != b) {
+                throw "Invalid length, expected ".concat(b, " but got ").concat(data.length, " (SCRIPT_ERR_BAD_OPCODE)");
+            }
+            if (offset === bytes.length) {
+                return data;
+            }
+        }
+        else {
+            throw "Invalid opcode 0x".concat(b.toString(16).padStart(2, '0'));
+        }
+    }
+    throw 'No last element or last element was an opcode';
 }
 function scriptToAsm(script) {
     var asm = [];
@@ -1939,4 +2288,41 @@ var Util;
         return false;
     }
     Util.overlap = overlap;
+    function relativeTimelockToString(s) {
+        var t = s * 512;
+        var output = (t % 60) + 's';
+        var prev = 60;
+        for (var _i = 0, _a = [
+            ['m', 60],
+            ['h', 24],
+            ['d', 999]
+        ]; _i < _a.length; _i++) {
+            var unit = _a[_i];
+            t = Math.floor(t / prev);
+            if (!t) {
+                break;
+            }
+            output = (t % unit[1]) + unit[0] + ' ' + output;
+            prev = unit[1];
+        }
+        return output;
+    }
+    Util.relativeTimelockToString = relativeTimelockToString;
+    function clone(obj) {
+        if (obj instanceof Uint8Array) {
+            return new Uint8Array(obj);
+        }
+        if (typeof obj !== 'object') {
+            return obj;
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(clone);
+        }
+        var c = {};
+        for (var k in obj) {
+            c[k] = clone(obj[k]);
+        }
+        return c;
+    }
+    Util.clone = clone;
 })(Util || (Util = {}));

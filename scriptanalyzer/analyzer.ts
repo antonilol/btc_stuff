@@ -15,8 +15,8 @@ function maskSequence(seq: number): number {
 // sequence not SEQUENCE_FINAL = 0xffffffff
 
 class ScriptAnalyzer {
-	private readonly version: ScriptVersion;
-	private readonly rules: ScriptRules;
+	readonly version: ScriptVersion;
+	readonly rules: ScriptRules;
 	private readonly stack: Expr[];
 	private readonly altstack: Expr[];
 	private readonly spendingConditions: Expr[];
@@ -40,7 +40,7 @@ class ScriptAnalyzer {
 
 		analyzer.analyze();
 
-		ScriptAnalyzer.cleanupConditions(analyzer.branches);
+		analyzer.cleanupConditions();
 
 		if (!analyzer.branches.length) {
 			return 'Script is unspendable';
@@ -49,24 +49,29 @@ class ScriptAnalyzer {
 		let s = 'Spending paths:';
 
 		for (const a of analyzer.branches) {
-			const locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement);
-			const sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement);
+			const locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement, d => new Date(d).toString());
+			const sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement, Util.relativeTimelockToString);
 			s += `\n\n\
-				Conditions: ${a.spendingConditions.map(expr => Expr.exprToString(expr)).join(' && ')}\n\
+				Stack item requirements:\
+				${a.spendingConditions.length ? '\n' + a.spendingConditions.map(expr => Expr.toString(expr)).join('\n') : ' none'}\n\
 				Locktime requirement: ${locktime ?? 'no'}\n\
-				Sequence requirement: ${sequence ?? (locktime ? 'non final (not 0xffffffff)' : 'no')}`;
+				Sequence requirement: ${sequence ?? (locktime ? 'non-final (not 0xffffffff)' : 'no')}`;
 		}
 
 		return s;
 	}
 
-	private static locktimeRequirementToString(l: LocktimeRequirement): string | undefined {
+	private static locktimeRequirementToString(
+		l: LocktimeRequirement,
+		timeToString: (time: number) => string
+	): string | undefined {
 		if (!(l.exprs.length || 'type' in l)) {
 			return;
 		}
-		return `type: ${'type' in l ? l.type : 'unknown'}, minValue: ${'type' in l ? l.minValue : 'unknown'}${
-			l.exprs.length ? `, stack elements: ${l.exprs.map(expr => Expr.exprToString(expr)).join(', ')}` : ''
-		}`;
+		const type = 'type' in l ? l.type : 'unknown';
+		return `type: ${type}, minValue: ${
+			'type' in l ? (type === 'time' ? timeToString(l.minValue) : l.minValue) : 'unknown'
+		}${l.exprs.length ? `, stack elements: ${l.exprs.map(expr => Expr.toString(expr)).join(', ')}` : ''}`;
 	}
 
 	private constructor(arg: Script | ScriptAnalyzer) {
@@ -75,7 +80,7 @@ class ScriptAnalyzer {
 			this.rules = arg.rules;
 			this.stack = arg.stack.slice();
 			this.altstack = arg.altstack.slice();
-			this.spendingConditions = arg.spendingConditions.slice();
+			this.spendingConditions = Util.clone(arg.spendingConditions);
 			this.stackIndex = arg.stackIndex;
 			this.script = arg.script;
 			this.scriptOffset = arg.scriptOffset;
@@ -100,44 +105,73 @@ class ScriptAnalyzer {
 		}
 	}
 
-	private static cleanupConditions(branches: ScriptAnalyzer[]): /* ScriptError | */ void {
-		for (let i = 0; i < branches.length; i++) {
-			const exprs = branches[i].spendingConditions;
+	private cleanupConditions(): /* ScriptError | */ void {
+		for (let i = 0; i < this.branches.length; i++) {
+			const exprs = this.branches[i].spendingConditions;
 			Expr.normalizeExprs(exprs);
 			exprs: for (let j = 0; j < exprs.length; j++) {
 				const expr = exprs[j];
-				for (let k = j + 1; k < exprs.length; k++) {
-					const expr2 = exprs[k];
-					if (Expr.exprEqual(expr, expr2)) {
-						exprs.splice(k, 1);
-						k--;
-					} else if (
-						('opcode' in expr &&
-							(expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
-							Expr.exprEqual(expr.args[0], exprs[k])) ||
-						('opcode' in expr2 &&
-							(expr2.opcode === opcodes.OP_NOT || expr2.opcode === opcodes.INTERNAL_NOT) &&
-							Expr.exprEqual(expr, expr2.args[0]))
-					) {
-						branches.splice(i, 1);
-						i--;
-						break exprs;
-					}
-				}
-				const res = Expr.evalExpr(expr);
-				if (typeof res === 'boolean') {
-					if (res) {
+				if (expr instanceof Uint8Array) {
+					if (ScriptConv.Bool.decode(expr)) {
 						exprs.splice(j, 1);
 						j--;
-						// continue;
+						continue;
 					} else {
-						branches.splice(i, 1);
+						this.branches.splice(i, 1);
 						i--;
 						break;
 					}
-				} else if (res) {
-					exprs[j] = res;
-					j--;
+				}
+				for (let k = 0; k < exprs.length; k++) {
+					if (j === k) {
+						continue;
+					}
+					const expr2 = exprs[k];
+					if (Expr.equal(expr, expr2)) {
+						// (a && a) == a
+						exprs.splice(k, 1);
+						if (j > k) {
+							j--;
+						}
+						k--;
+					} else if (
+						'opcode' in expr &&
+						(expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
+						Expr.equal(expr.args[0], expr2)
+					) {
+						// (a && !a) == 0
+						this.branches.splice(i, 1);
+						i--;
+						break exprs;
+					} else if (
+						'opcode' in expr &&
+						expr.opcode === opcodes.OP_EQUAL &&
+						Expr.priority(expr.args[1]) < Expr.priority(expr.args[0])
+					) {
+						// (a == b && f(a)) -> f(b)
+						const res = Expr.replaceAllIn(expr.args[0], expr.args[1], expr2);
+						if (!Expr.equal(expr2, res)) {
+							exprs[k] = res;
+							j = k - 1;
+							continue exprs;
+						}
+					}
+				}
+				try {
+					const res = Expr.evalExpr(this, expr);
+					if (res) {
+						exprs[j] = res;
+						j--;
+					}
+				} catch (e) {
+					if (typeof e === 'number') {
+						console.log(`DEBUG cleanupConditions: spending path returned error: ${scriptErrorString(e)}`);
+						this.branches.splice(i, 1);
+						i--;
+						break;
+					} else {
+						throw e;
+					}
 				}
 			}
 		}
@@ -146,7 +180,7 @@ class ScriptAnalyzer {
 	private analyze(): void {
 		const error = this.analyzePath();
 		if (error !== undefined) {
-			console.log(`DEBUG: spending path returned error: ${scriptErrorString(error)}`);
+			console.log(`DEBUG analyze: spending path returned error: ${scriptErrorString(error)}`);
 			for (let i = 0; i < this.branches.length; i++) {
 				if (this.branches[i] === this) {
 					this.branches.splice(i, 1);
@@ -464,11 +498,13 @@ class ScriptAnalyzer {
 						}
 						const sigs = this.takeElements(scount.n);
 						const dummy = this.takeElements(1)[0];
-						this.spendingConditions.push({
-							opcode: opcodes.OP_EQUAL,
-							args: [ dummy, ScriptConv.Bool.FALSE ],
-							error: ScriptError.SCRIPT_ERR_SIG_NULLDUMMY
-						});
+						if (this.rules === ScriptRules.ALL) {
+							this.spendingConditions.push({
+								opcode: opcodes.OP_EQUAL,
+								args: [ dummy, ScriptConv.Bool.FALSE ],
+								error: ScriptError.SCRIPT_ERR_SIG_NULLDUMMY
+							});
+						}
 
 						this.stack.push({
 							opcode: opcodes.OP_CHECKMULTISIG,
@@ -571,7 +607,10 @@ class ScriptAnalyzer {
 			return ScriptError.SCRIPT_ERR_UNBALANCED_CONDITIONAL;
 		}
 
-		if (this.stack.length > 1) {
+		if (
+			this.stack.length > 1 &&
+			!(this.version === ScriptVersion.LEGACY && this.rules === ScriptRules.CONSENSUS_ONLY)
+		) {
 			return ScriptError.SCRIPT_ERR_CLEANSTACK;
 		}
 

@@ -1,14 +1,16 @@
 const html = {
-	asm: document.getElementById('asm')!,
-	asmError: document.getElementById('asm-error')!,
-	hex: document.getElementById('hex')!,
-	hexError: document.getElementById('hex-error')!,
-	analysis: document.getElementById('analysis')!,
+	asm: document.getElementById('asm') as HTMLDivElement,
+	asmError: document.getElementById('asm-error') as HTMLPreElement,
+	hex: document.getElementById('hex') as HTMLDivElement,
+	hexError: document.getElementById('hex-error') as HTMLPreElement,
+	analysis: document.getElementById('analysis') as HTMLDivElement,
 	scriptVersion: document.getElementById('script-version') as HTMLSelectElement,
 	scriptRules: document.getElementById('script-rules') as HTMLSelectElement,
-	webcryptoError: document.getElementById('webcrypto-error')!,
+	webcryptoError: document.getElementById('webcrypto-error') as HTMLDivElement,
 	chainImport: document.getElementById('chain-import') as HTMLInputElement,
-	chainImportButton: document.getElementById('chain-import-button')!
+	chainImportButton: document.getElementById('chain-import-button') as HTMLButtonElement,
+	chainImportError: document.getElementById('chain-import-error') as HTMLSpanElement,
+	chainImportURL: document.getElementById('chain-import-url') as HTMLInputElement
 };
 
 html.webcryptoError.hidden = window.isSecureContext;
@@ -18,10 +20,11 @@ html.webcryptoError.hidden = window.isSecureContext;
 	html.hex.addEventListener(evType, hexUpdate);
 });
 
+let script: Script = [];
 function asmUpdate() {
 	try {
-		const hex = (html.hex.innerHTML = asmtohex(html.asm.innerText));
-		runAnalyzer(parseHexScript(hex));
+		const hex = (html.hex.innerText = asmtohex(html.asm.innerText));
+		script = parseHexScript(hex);
 		html.hexError.innerText = '';
 		html.asmError.innerText = '';
 	} catch (e) {
@@ -31,11 +34,12 @@ function asmUpdate() {
 			throw e;
 		}
 	}
+	runAnalyzer();
 }
 
 function hexUpdate() {
 	try {
-		const script = parseHexScript(html.hex.innerText);
+		script = parseHexScript(html.hex.innerText);
 		html.asm.innerHTML = '';
 		scriptToAsm(script).forEach(e => {
 			const span = document.createElement('span');
@@ -44,7 +48,6 @@ function hexUpdate() {
 			html.asm.appendChild(span);
 			html.asm.appendChild(document.createElement('br'));
 		});
-		runAnalyzer(script);
 		html.asmError.innerText = '';
 		html.hexError.innerText = '';
 	} catch (e) {
@@ -54,9 +57,10 @@ function hexUpdate() {
 			throw e;
 		}
 	}
+	runAnalyzer();
 }
 
-function runAnalyzer(script: Script) {
+function runAnalyzer() {
 	try {
 		html.analysis.innerText = ScriptAnalyzer.analyzeScript(script);
 	} catch (e) {
@@ -64,12 +68,20 @@ function runAnalyzer(script: Script) {
 	}
 }
 
-html.chainImportButton.addEventListener('click', e => {
+html.chainImportButton.addEventListener('click', async () => {
 	const address = html.chainImport.value;
-	getScript(address).then(hex => {
-		html.hex.innerHTML = hex;
-		hexUpdate();
-	});
+	const apiURL = html.chainImportURL.value;
+	let script: Awaited<ReturnType<typeof getScript>>;
+	try {
+		script = await getScript(apiURL, address);
+	} catch (e) {
+		html.chainImportError.innerText = e instanceof Error ? e.message : String(e);
+		return;
+	}
+	html.chainImportError.innerText = '';
+	html.hex.innerText = script.hex;
+	html.scriptVersion.selectedIndex = script.version;
+	hexUpdate();
 });
 
 enum ScriptVersion {
@@ -90,3 +102,5 @@ enum ScriptRules {
 function getScriptRules(): ScriptRules {
 	return html.scriptRules.selectedIndex;
 }
+
+[ html.scriptVersion, html.scriptRules ].forEach(el => el.addEventListener('change', runAnalyzer));

@@ -173,6 +173,35 @@ const pushdataLength = {
 	[opcodes.OP_PUSHDATA4]: 4
 };
 
+const returnsBoolean = [
+	opcodes.OP_EQUAL,
+	opcodes.OP_NOT,
+	opcodes.OP_0NOTEQUAL,
+	opcodes.OP_BOOLAND,
+	opcodes.OP_BOOLOR,
+	opcodes.OP_NUMEQUAL,
+	opcodes.OP_NUMNOTEQUAL,
+	opcodes.OP_LESSTHAN,
+	opcodes.OP_GREATERTHAN,
+	opcodes.OP_LESSTHANOREQUAL,
+	opcodes.OP_GREATERTHANOREQUAL,
+	opcodes.OP_WITHIN,
+	opcodes.OP_CHECKSIG,
+	opcodes.OP_CHECKMULTISIG,
+	opcodes.INTERNAL_NOT
+];
+
+const argumentOrderMatters = [
+	opcodes.OP_SUB,
+	opcodes.OP_LESSTHAN,
+	opcodes.OP_GREATERTHAN,
+	opcodes.OP_LESSTHANOREQUAL,
+	opcodes.OP_GREATERTHANOREQUAL,
+	opcodes.OP_WITHIN,
+	opcodes.OP_CHECKSIG,
+	opcodes.OP_CHECKMULTISIG
+];
+
 function opcodeName(op: number): string | void {
 	if (op < 0) {
 		return;

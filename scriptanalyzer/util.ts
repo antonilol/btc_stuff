@@ -57,4 +57,40 @@ namespace Util {
 		}
 		return false;
 	}
+
+	export function relativeTimelockToString(s: number): string {
+		let t = s * 512;
+		let output = (t % 60) + 's';
+		let prev = 60;
+		for (const unit of [
+			[ 'm', 60 ],
+			[ 'h', 24 ],
+			[ 'd', 999 ]
+		] as const) {
+			t = Math.floor(t / prev);
+			if (!t) {
+				break;
+			}
+			output = (t % unit[1]) + unit[0] + ' ' + output;
+			prev = unit[1];
+		}
+		return output;
+	}
+
+	export function clone<T>(obj: T): T {
+		if (obj instanceof Uint8Array) {
+			return new Uint8Array(obj) as T;
+		}
+		if (typeof obj !== 'object') {
+			return obj;
+		}
+		if (Array.isArray(obj)) {
+			return obj.map(clone) as unknown as T;
+		}
+		const c = {} as T;
+		for (const k in obj) {
+			c[k] = clone(obj[k]);
+		}
+		return c;
+	}
 }

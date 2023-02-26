@@ -16,9 +16,9 @@
 
 		#webcrypto-error {
 			height: auto;
-    	padding: 15px;
-    	background: #a00;
-    	color: white;
+			padding: 15px;
+			background: #a00;
+			color: white;
 		}
 
 		body > div > div {
@@ -58,6 +58,14 @@
 			background: #ccc;
 			color: red;
 		}
+
+		#chain-import {
+			width: 500px;
+		}
+
+		#chain-import-error {
+			color: red;
+		}
 	</style>
 </head>
 <body>
@@ -90,7 +98,7 @@
 				Version:
 				<select id="script-version">
 					<option>Pre SegWit (output script/P2SH)</option>
-					<option>SegWit v0 (P2WSH witness script)</option>
+					<option selected>SegWit v0 (P2WSH witness script)</option>
 					<option>SegWit v1 (P2TR tapscript)</option>
 				</select>
 			</label>
@@ -98,18 +106,20 @@
 			<label>
 				Rules:
 				<select id="script-rules">
-					<option>Consensus and policy</option>
+					<option selected>Consensus and policy</option>
 					<option>Consensus only</option>
 				</select>
 			</label>
 			<br><br>
-			<label>
-				Import from the blockchain using the mempool.space API
-				<br>
-				Enter Bitcoin address:
-				<input type="text" id="chain-import" />
-				<button id="chain-import-button">Import</button>
-			</label>
+			Import from the blockchain using the mempool.space API
+			<br>
+			<label>API URL: <input type="text" id="chain-import-url" placeholder="mempool API URL" value="https://mempool.space" /></label>
+			<br>
+			<label>Address: <input type="text" id="chain-import" placeholder="Bitcoin address" /></label>
+			<br>
+			<button id="chain-import-button">Import</button>
+			<br>
+			<span id="chain-import-error"></span>
 		</div>
 	</div>
 

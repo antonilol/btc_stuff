@@ -99,6 +99,52 @@ function parseHexScript(hex: string): Script {
 	return a;
 }
 
+function getRedeemScript(scriptSigHex: string): Uint8Array {
+	const v = scriptSigHex.replace(/\s+/g, '').toLowerCase();
+	if (!/^[0-9a-f]*$/.test(v)) {
+		throw 'Illegal characters in hex literal';
+	}
+	if (v.length & 1) {
+		throw 'Odd amount of characters in hex literal';
+	}
+	const bytes = Util.hexToBuffer(v);
+	for (let offset = 0; offset < bytes.length; ) {
+		const b = bytes[offset++];
+		const op = opcodeName(b);
+		if (op) {
+			const n = pushdataLength[b];
+			if (n) {
+				const pushSize = bytes.subarray(offset, offset + n);
+				if (pushSize.length !== n) {
+					throw `${op} with incomplete push length (SCRIPT_ERR_BAD_OPCODE)`;
+				}
+				const l = Util.intDecodeLE(pushSize);
+				offset += n;
+				const data = bytes.subarray(offset, offset + l);
+				offset += l;
+				if (data.length !== l) {
+					throw `Invalid length, expected ${l} but got ${data.length} (SCRIPT_ERR_BAD_OPCODE)`;
+				}
+				if (offset === bytes.length) {
+					return data;
+				}
+			}
+		} else if (b <= 75) {
+			const data = bytes.subarray(offset, offset + b);
+			offset += b;
+			if (data.length != b) {
+				throw `Invalid length, expected ${b} but got ${data.length} (SCRIPT_ERR_BAD_OPCODE)`;
+			}
+			if (offset === bytes.length) {
+				return data;
+			}
+		} else {
+			throw `Invalid opcode 0x${b.toString(16).padStart(2, '0')}`;
+		}
+	}
+	throw 'No last element or last element was an opcode';
+}
+
 function scriptToAsm(script: Script): { s: string; t: OpcodeType }[] {
 	const asm: { s: string; t: OpcodeType }[] = [];
 	for (const op of script) {
