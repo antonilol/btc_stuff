@@ -30,6 +30,7 @@ exports.StealthAddress = void 0;
 const curve = __importStar(require("tiny-secp256k1"));
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const bs58check_1 = __importDefault(require("bs58check"));
+const crypto_1 = require("crypto");
 class StealthAddress {
     constructor(spendKey, viewKey) {
         if (spendKey.length == 32) {
@@ -57,6 +58,27 @@ class StealthAddress {
         if (this.viewPriv) {
             this.viewPub = Buffer.from(curve.pointFromScalar(this.viewPriv));
         }
+    }
+    static makeRandom() {
+        return new StealthAddress((0, crypto_1.randomBytes)(32));
+    }
+    hasPrivateSpendKey() {
+        return !!this.spendPriv;
+    }
+    hasPrivateViewKey() {
+        return !!this.viewPriv;
+    }
+    isWatchOnly() {
+        return !this.hasPrivateSpendKey() && this.hasPrivateViewKey();
+    }
+    isPublic() {
+        return !this.hasPrivateSpendKey() && !this.hasPrivateViewKey();
+    }
+    getWatchOnlyKey() {
+        return new StealthAddress(this.spendPub, this.viewPriv);
+    }
+    getPublicKey() {
+        return new StealthAddress(this.spendPub, this.viewPub);
     }
     /** When sending from a taproot address, add '02' in front of the senderKey */
     deriveOneTimeKey(senderKey, prevTxid, prevVout, vout) {

@@ -107,7 +107,7 @@ const typeParsers = {
 	'lnwire.DeliveryAddress': (reader: ChantoolsDumpReader) => reader.readBuffer()
 } as const;
 
-export type ChantoolsType<Name extends keyof typeof typeParsers> = ReturnType<typeof typeParsers[Name]>;
+export type ChantoolsType<Name extends keyof typeof typeParsers> = ReturnType<(typeof typeParsers)[Name]>;
 
 type Value =
 	| ChantoolsType<keyof typeof typeParsers>
