@@ -24,8 +24,6 @@ class ScriptAnalyzer {
 	private readonly script: Script;
 	private scriptOffset: number;
 	private readonly cs: ConditionStack;
-	private locktimeRequirement: LocktimeRequirement;
-	private sequenceRequirement: LocktimeRequirement;
 	private readonly branches: ScriptAnalyzer[];
 
 	/** Pass an array of (Uint8Array | number) where a Uint8Array is a data push and a number is an opcode */
@@ -49,9 +47,15 @@ class ScriptAnalyzer {
 		let s = 'Spending paths:';
 
 		for (const a of analyzer.branches) {
-			const locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement, d => new Date(d).toString());
-			const sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement, Util.relativeTimelockToString);
+			// TODO if the last branch fails here 'Spending paths:' is printed to the div
+			const r = a.calculateLocktimeRequirements();
+			if (typeof r === 'number') {
+				continue;
+			}
+			const locktime = ScriptAnalyzer.locktimeRequirementToString(r.locktimeRequirement, d => new Date(d).toString());
+			const sequence = ScriptAnalyzer.locktimeRequirementToString(r.sequenceRequirement, Util.relativeTimelockToString);
 			s += `\n\n\
+				Stack size: ${a.stackIndex}\n\
 				Stack item requirements:\
 				${a.spendingConditions.length ? '\n' + a.spendingConditions.map(expr => Expr.toString(expr)).join('\n') : ' none'}\n\
 				Locktime requirement: ${locktime ?? 'no'}\n\
@@ -59,6 +63,74 @@ class ScriptAnalyzer {
 		}
 
 		return s;
+	}
+
+	private calculateLocktimeRequirements():
+		| { locktimeRequirement: LocktimeRequirement; sequenceRequirement: LocktimeRequirement }
+		| ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME
+		| ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME {
+		let locktimeRequirement = { exprs: [] } as LocktimeRequirement;
+		let sequenceRequirement = { exprs: [] } as LocktimeRequirement;
+
+		for (let i = 0; i < this.spendingConditions.length; i++) {
+			const expr = this.spendingConditions[i];
+			if ('opcode' in expr) {
+				const arg = expr.args[0];
+				switch (expr.opcode) {
+					case opcodes.OP_CHECKLOCKTIMEVERIFY: {
+						if (arg instanceof Uint8Array) {
+							const minValue = ScriptConv.Int.decode(arg);
+							if (minValue < 0) {
+								return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
+							}
+							const type = minValue < 500000000 ? 'height' : 'time';
+							if ('type' in locktimeRequirement) {
+								if (locktimeRequirement.type !== type) {
+									return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
+								}
+								if (locktimeRequirement.minValue < minValue) {
+									locktimeRequirement.minValue = minValue;
+								}
+							} else {
+								locktimeRequirement = { ...locktimeRequirement, type, minValue };
+							}
+						} else {
+							locktimeRequirement.exprs.push(arg);
+						}
+						this.spendingConditions.splice(i, 1);
+						i--;
+						break;
+					}
+
+					case opcodes.OP_CHECKSEQUENCEVERIFY: {
+						if (arg instanceof Uint8Array) {
+							const minValue = maskSequence(ScriptConv.Int.decode(arg));
+							if (minValue < 0) {
+								return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
+							}
+							const type = minValue < 0x400000 ? 'height' : 'time';
+							if ('type' in sequenceRequirement) {
+								if (sequenceRequirement.type !== type) {
+									return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
+								}
+								if (sequenceRequirement.minValue < minValue) {
+									sequenceRequirement.minValue = minValue;
+								}
+							} else {
+								sequenceRequirement = { ...sequenceRequirement, type, minValue };
+							}
+						} else {
+							sequenceRequirement.exprs.push(arg);
+						}
+						this.spendingConditions.splice(i, 1);
+						i--;
+						break;
+					}
+				}
+			}
+		}
+
+		return { locktimeRequirement, sequenceRequirement };
 	}
 
 	private static locktimeRequirementToString(
@@ -85,8 +157,6 @@ class ScriptAnalyzer {
 			this.script = arg.script;
 			this.scriptOffset = arg.scriptOffset;
 			this.cs = arg.cs.clone();
-			this.locktimeRequirement = { ...arg.locktimeRequirement };
-			this.sequenceRequirement = { ...arg.sequenceRequirement };
 			this.branches = arg.branches;
 			this.branches.push(this);
 		} else {
@@ -99,42 +169,40 @@ class ScriptAnalyzer {
 			this.script = arg;
 			this.scriptOffset = 0;
 			this.cs = new ConditionStack();
-			this.locktimeRequirement = { exprs: [] };
-			this.sequenceRequirement = { exprs: [] };
 			this.branches = [ this ];
 		}
 	}
 
+	// TODO instance method per branch
 	private cleanupConditions(): /* ScriptError | */ void {
-		for (let i = 0; i < this.branches.length; i++) {
+		i: for (let i = 0; i < this.branches.length; i++) {
 			const exprs = this.branches[i].spendingConditions;
 			Expr.normalizeExprs(exprs);
-			exprs: for (let j = 0; j < exprs.length; j++) {
+			j: for (let j = 0; j < exprs.length; j++) {
 				const expr = exprs[j];
 				if (expr instanceof Uint8Array) {
 					if (ScriptConv.Bool.decode(expr)) {
 						exprs.splice(j, 1);
 						j--;
-						continue;
+						continue j;
 					} else {
 						this.branches.splice(i, 1);
 						i--;
-						break;
+						continue i;
 					}
 				}
-				for (let k = 0; k < exprs.length; k++) {
+				k: for (let k = 0; k < exprs.length; k++) {
 					if (j === k) {
-						continue;
+						continue k;
 					}
 					const expr2 = exprs[k];
 					if (Expr.equal(expr, expr2)) {
 						// (a && a) == a
 						exprs.splice(k, 1);
-						if (j > k) {
-							j--;
-						}
-						k--;
-					} else if (
+						i--;
+						continue i;
+					}
+					if (
 						'opcode' in expr &&
 						(expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
 						Expr.equal(expr.args[0], expr2)
@@ -142,18 +210,42 @@ class ScriptAnalyzer {
 						// (a && !a) == 0
 						this.branches.splice(i, 1);
 						i--;
-						break exprs;
-					} else if (
+						continue i;
+					}
+					if (
 						'opcode' in expr &&
-						expr.opcode === opcodes.OP_EQUAL &&
-						Expr.priority(expr.args[1]) < Expr.priority(expr.args[0])
+						expr.opcode === opcodes.OP_EQUAL // &&
+						// Expr.priority(expr.args[1]) < Expr.priority(expr.args[0])
 					) {
 						// (a == b && f(a)) -> f(b)
 						const res = Expr.replaceAllIn(expr.args[0], expr.args[1], expr2);
 						if (!Expr.equal(expr2, res)) {
 							exprs[k] = res;
-							j = k - 1;
-							continue exprs;
+							i--;
+							continue i;
+						}
+					}
+					if ('opcode' in expr && returnsBoolean.includes(expr.opcode)) {
+						// (a && f(a)) -> f(<01>)
+						const res = Expr.replaceAllIn(expr, ScriptConv.Bool.TRUE, expr2);
+						if (!Expr.equal(expr2, res)) {
+							exprs[k] = res;
+							i--;
+							continue i;
+						}
+					}
+					if (
+						'opcode' in expr &&
+						(expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
+						'opcode' in expr.args[0] &&
+						returnsBoolean.includes(expr.args[0].opcode)
+					) {
+						// (!a && f(a)) -> f(<>)
+						const res = Expr.replaceAllIn(expr.args[0], ScriptConv.Bool.FALSE, expr2);
+						if (!Expr.equal(expr2, res)) {
+							exprs[k] = res;
+							i--;
+							continue i;
 						}
 					}
 				}
@@ -168,7 +260,7 @@ class ScriptAnalyzer {
 						console.log(`DEBUG cleanupConditions: spending path returned error: ${scriptErrorString(e)}`);
 						this.branches.splice(i, 1);
 						i--;
-						break;
+						continue i;
 					} else {
 						throw e;
 					}
@@ -201,10 +293,9 @@ class ScriptAnalyzer {
 				this.stack.push(op);
 			} else {
 				switch (op) {
-					case opcodes.OP_0: {
+					case opcodes.OP_0:
 						this.stack.push(new Uint8Array([]));
 						break;
-					}
 
 					case opcodes.OP_1:
 					case opcodes.OP_2:
@@ -221,14 +312,12 @@ class ScriptAnalyzer {
 					case opcodes.OP_13:
 					case opcodes.OP_14:
 					case opcodes.OP_15:
-					case opcodes.OP_16: {
+					case opcodes.OP_16:
 						this.stack.push(new Uint8Array([ op - 0x50 ]));
 						break;
-					}
 
-					case opcodes.OP_NOP: {
+					case opcodes.OP_NOP:
 						break;
-					}
 
 					case opcodes.OP_IF:
 					case opcodes.OP_NOTIF: {
@@ -258,65 +347,55 @@ class ScriptAnalyzer {
 						break;
 					}
 
-					case opcodes.OP_ELSE: {
+					case opcodes.OP_ELSE:
 						if (this.cs.empty()) {
 							return ScriptError.SCRIPT_ERR_UNBALANCED_CONDITIONAL;
 						}
 						this.cs.toggle_top();
 						break;
-					}
 
-					case opcodes.OP_ENDIF: {
+					case opcodes.OP_ENDIF:
 						if (this.cs.empty()) {
 							return ScriptError.SCRIPT_ERR_UNBALANCED_CONDITIONAL;
 						}
 						this.cs.pop_back();
 						break;
-					}
 
-					case opcodes.OP_VERIFY: {
+					case opcodes.OP_VERIFY:
 						if (!this.verify()) {
 							return ScriptError.SCRIPT_ERR_VERIFY;
 						}
 						break;
-					}
 
-					case opcodes.OP_RETURN: {
+					case opcodes.OP_RETURN:
 						return ScriptError.SCRIPT_ERR_OP_RETURN;
-					}
 
-					case opcodes.OP_TOALTSTACK: {
+					case opcodes.OP_TOALTSTACK:
 						this.altstack.push(this.takeElements(1)[0]);
 						break;
-					}
 
-					case opcodes.OP_FROMALTSTACK: {
+					case opcodes.OP_FROMALTSTACK:
 						if (!this.altstack.length) {
 							return ScriptError.SCRIPT_ERR_INVALID_ALTSTACK_OPERATION;
 						}
 						this.stack.push(this.altstack.pop()!);
 						break;
-					}
 
-					case opcodes.OP_2DROP: {
+					case opcodes.OP_2DROP:
 						this.takeElements(2);
 						break;
-					}
 
-					case opcodes.OP_2DUP: {
+					case opcodes.OP_2DUP:
 						this.stack.push(...this.readElements(2));
 						break;
-					}
 
-					case opcodes.OP_3DUP: {
+					case opcodes.OP_3DUP:
 						this.stack.push(...this.readElements(3));
 						break;
-					}
 
-					case opcodes.OP_2OVER: {
+					case opcodes.OP_2OVER:
 						this.stack.push(...this.readElements(4).slice(0, 2));
 						break;
-					}
 
 					case opcodes.OP_2ROT: {
 						const elems = this.takeElements(6);
@@ -340,30 +419,25 @@ class ScriptAnalyzer {
 						break;
 					}
 
-					case opcodes.OP_DEPTH: {
+					case opcodes.OP_DEPTH:
 						this.stack.push(ScriptConv.Int.encode(this.stack.length));
 						break;
-					}
 
-					case opcodes.OP_DROP: {
+					case opcodes.OP_DROP:
 						this.takeElements(1);
 						break;
-					}
 
-					case opcodes.OP_DUP: {
+					case opcodes.OP_DUP:
 						this.stack.push(this.readElements(1)[0]);
 						break;
-					}
 
-					case opcodes.OP_NIP: {
+					case opcodes.OP_NIP:
 						this.stack.push(this.takeElements(2)[1]);
 						break;
-					}
 
-					case opcodes.OP_OVER: {
+					case opcodes.OP_OVER:
 						this.stack.push(this.readElements(2)[0]);
 						break;
-					}
 
 					case opcodes.OP_PICK:
 					case opcodes.OP_ROLL: {
@@ -400,29 +474,32 @@ class ScriptAnalyzer {
 						break;
 					}
 
-					case opcodes.OP_SIZE: {
+					case opcodes.OP_SIZE:
 						this.stack.push({ opcode: op, args: this.readElements(1) });
 						break;
-					}
 
 					case opcodes.OP_EQUAL:
-					case opcodes.OP_EQUALVERIFY: {
+					case opcodes.OP_EQUALVERIFY:
 						this.stack.push({ opcode: opcodes.OP_EQUAL, args: this.takeElements(2) });
 						if (op === opcodes.OP_EQUALVERIFY && !this.verify()) {
 							return ScriptError.SCRIPT_ERR_EQUALVERIFY;
 						}
 						break;
-					}
 
 					case opcodes.OP_1ADD:
 					case opcodes.OP_1SUB:
+						this.stack.push({
+							opcode: op === opcodes.OP_1ADD ? opcodes.OP_ADD : opcodes.OP_SUB,
+							args: [ this.takeElements(1)[0], new Uint8Array([ 1 ]) ]
+						});
+						break;
+
 					case opcodes.OP_NEGATE:
 					case opcodes.OP_ABS:
 					case opcodes.OP_NOT:
-					case opcodes.OP_0NOTEQUAL: {
+					case opcodes.OP_0NOTEQUAL:
 						this.stack.push({ opcode: op, args: this.takeElements(1) });
 						break;
-					}
 
 					case opcodes.OP_ADD:
 					case opcodes.OP_SUB:
@@ -436,7 +513,7 @@ class ScriptAnalyzer {
 					case opcodes.OP_LESSTHANOREQUAL:
 					case opcodes.OP_GREATERTHANOREQUAL:
 					case opcodes.OP_MIN:
-					case opcodes.OP_MAX: {
+					case opcodes.OP_MAX:
 						this.stack.push({
 							opcode: op === opcodes.OP_NUMEQUALVERIFY ? opcodes.OP_NUMEQUAL : op,
 							args: this.takeElements(2)
@@ -445,34 +522,29 @@ class ScriptAnalyzer {
 							return ScriptError.SCRIPT_ERR_NUMEQUALVERIFY;
 						}
 						break;
-					}
 
-					case opcodes.OP_WITHIN: {
+					case opcodes.OP_WITHIN:
 						this.stack.push({ opcode: op, args: this.takeElements(3) });
 						break;
-					}
 
 					case opcodes.OP_RIPEMD160:
 					case opcodes.OP_SHA1:
 					case opcodes.OP_SHA256:
 					case opcodes.OP_HASH160:
-					case opcodes.OP_HASH256: {
+					case opcodes.OP_HASH256:
 						this.stack.push({ opcode: op, args: this.takeElements(1) });
 						break;
-					}
 
-					case opcodes.OP_CODESEPARATOR: {
+					case opcodes.OP_CODESEPARATOR:
 						break;
-					}
 
 					case opcodes.OP_CHECKSIG:
-					case opcodes.OP_CHECKSIGVERIFY: {
+					case opcodes.OP_CHECKSIGVERIFY:
 						this.stack.push({ opcode: opcodes.OP_CHECKSIG, args: this.takeElements(2) });
 						if (op === opcodes.OP_CHECKSIGVERIFY && !this.verify()) {
 							return ScriptError.SCRIPT_ERR_CHECKSIGVERIFY;
 						}
 						break;
-					}
 
 					case opcodes.OP_CHECKMULTISIG:
 					case opcodes.OP_CHECKMULTISIGVERIFY: {
@@ -516,51 +588,9 @@ class ScriptAnalyzer {
 						break;
 					}
 
-					case opcodes.OP_CHECKLOCKTIMEVERIFY: {
-						const arg = this.readElements(1)[0];
-						if (arg instanceof Uint8Array) {
-							const minValue = ScriptConv.Int.decode(arg);
-							if (minValue < 0) {
-								return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
-							}
-							const type = minValue < 500000000 ? 'height' : 'time';
-							if ('type' in this.locktimeRequirement) {
-								if (this.locktimeRequirement.type !== type) {
-									return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
-								}
-								if (this.locktimeRequirement.minValue < minValue) {
-									this.locktimeRequirement.minValue = minValue;
-								}
-							} else {
-								this.locktimeRequirement = { ...this.locktimeRequirement, type, minValue };
-							}
-						} else {
-							this.locktimeRequirement.exprs.push(arg);
-						}
-						break;
-					}
-
+					case opcodes.OP_CHECKLOCKTIMEVERIFY:
 					case opcodes.OP_CHECKSEQUENCEVERIFY: {
-						const arg = this.readElements(1)[0];
-						if (arg instanceof Uint8Array) {
-							const minValue = maskSequence(ScriptConv.Int.decode(arg));
-							if (minValue < 0) {
-								return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
-							}
-							const type = minValue < 0x400000 ? 'height' : 'time';
-							if ('type' in this.sequenceRequirement) {
-								if (this.sequenceRequirement.type !== type) {
-									return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
-								}
-								if (this.sequenceRequirement.minValue < minValue) {
-									this.sequenceRequirement.minValue = minValue;
-								}
-							} else {
-								this.sequenceRequirement = { ...this.sequenceRequirement, type, minValue };
-							}
-						} else {
-							this.sequenceRequirement.exprs.push(arg);
-						}
+						this.spendingConditions.push({ opcode: op, args: this.readElements(1) });
 						break;
 					}
 
@@ -571,12 +601,11 @@ class ScriptAnalyzer {
 					case opcodes.OP_NOP7:
 					case opcodes.OP_NOP8:
 					case opcodes.OP_NOP9:
-					case opcodes.OP_NOP10: {
+					case opcodes.OP_NOP10:
 						break;
-					}
 
 					case opcodes.OP_CHECKSIGADD: {
-						if (this.version < ScriptVersion.SEGWITV1) {
+						if (this.version !== ScriptVersion.SEGWITV1) {
 							return ScriptError.SCRIPT_ERR_BAD_OPCODE;
 						}
 						const [ sig, n, pk ] = this.takeElements(3);
@@ -584,9 +613,8 @@ class ScriptAnalyzer {
 						break;
 					}
 
-					default: {
+					default:
 						return ScriptError.SCRIPT_ERR_BAD_OPCODE;
-					}
 				}
 			}
 			/*
@@ -662,7 +690,7 @@ class ScriptAnalyzer {
 		const res: Expr[] = [];
 		for (let i = 0; i < amount; i++) {
 			if (this.stack.length) {
-				res.unshift(<Expr>this.stack.pop());
+				res.unshift(this.stack.pop()!);
 			} else {
 				res.unshift({ index: this.stackIndex++ });
 			}

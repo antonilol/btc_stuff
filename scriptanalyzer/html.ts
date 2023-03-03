@@ -37,6 +37,7 @@ function asmUpdate() {
 	runAnalyzer();
 }
 
+const indentWidth = 2;
 function hexUpdate() {
 	try {
 		script = parseHexScript(html.hex.innerText);
@@ -44,7 +45,13 @@ function hexUpdate() {
 		scriptToAsm(script).forEach(e => {
 			const span = document.createElement('span');
 			span.innerText = e.s;
-			span.classList.add(`script-${OpcodeType[e.t].toLowerCase()}`);
+			span.classList.add(`script-${OpcodeType[e.type].toLowerCase()}`);
+			if (e.indent) {
+				const indent = document.createElement('span');
+				indent.classList.add('indent');
+				indent.innerText = ' '.repeat(e.indent * indentWidth);
+				html.asm.appendChild(indent);
+			}
 			html.asm.appendChild(span);
 			html.asm.appendChild(document.createElement('br'));
 		});

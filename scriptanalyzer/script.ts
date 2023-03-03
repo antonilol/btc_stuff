@@ -37,7 +37,8 @@ function asmtohex(asm: string): string {
 			script += hex;
 		} else {
 			const opcode =
-				opcodes[<keyof typeof opcodes>op.toUpperCase()] || opcodes[<keyof typeof opcodes>('OP_' + op.toUpperCase())];
+				opcodes[op.toUpperCase() as keyof typeof opcodes] ||
+				opcodes[('OP_' + op.toUpperCase()) as keyof typeof opcodes];
 			if (opcode === undefined || opcode < 0) {
 				throw `Unknown opcode ${op.length > 50 ? op.slice(0, 50) + '..' : op}${
 					/^[0-9a-fA-F]+$/.test(op) ? '. Hex data pushes have to be between < and >' : ''
@@ -145,25 +146,34 @@ function getRedeemScript(scriptSigHex: string): Uint8Array {
 	throw 'No last element or last element was an opcode';
 }
 
-function scriptToAsm(script: Script): { s: string; t: OpcodeType }[] {
-	const asm: { s: string; t: OpcodeType }[] = [];
+function scriptToAsm(script: Script): { s: string; type: OpcodeType; indent: number }[] {
+	const asm: { s: string; type: OpcodeType; indent: number }[] = [];
+	let indent = 0;
+
 	for (const op of script) {
 		if (op instanceof Uint8Array) {
 			if (op.length <= 4) {
-				asm.push({ s: '' + ScriptConv.Int.decode(op), t: OpcodeType.NUMBER });
+				asm.push({ s: '' + ScriptConv.Int.decode(op), type: OpcodeType.NUMBER, indent });
 			} else {
-				asm.push({ s: Util.scriptElemToHex(op), t: OpcodeType.DATA });
+				asm.push({ s: Util.scriptElemToHex(op), type: OpcodeType.DATA, indent });
 			}
 		} else {
 			if (op === opcodes.OP_0) {
-				asm.push({ s: '0', t: OpcodeType.NUMBER });
+				asm.push({ s: '0', type: OpcodeType.NUMBER, indent });
 			} else if ((op >= opcodes.OP_1 && op <= opcodes.OP_16) || op === opcodes.OP_1NEGATE) {
-				asm.push({ s: '' + (op - 0x50), t: OpcodeType.NUMBER });
+				asm.push({ s: '' + (op - 0x50), type: OpcodeType.NUMBER, indent });
 			} else {
-				asm.push({ s: opcodeName(op) || 'OP_INVALIDOPCODE', t: opcodeType(op) });
+				if ([ opcodes.OP_ELSE, opcodes.OP_ENDIF ].includes(op) && indent > 0) {
+					indent--;
+				}
+				asm.push({ s: opcodeName(op) || 'OP_INVALIDOPCODE', type: opcodeType(op), indent });
+				if ([ opcodes.OP_IF, opcodes.OP_NOTIF, opcodes.OP_ELSE ].includes(op)) {
+					indent++;
+				}
 			}
 		}
 	}
+
 	return asm;
 }
 

@@ -79,8 +79,6 @@ var ScriptAnalyzer = /** @class */ (function () {
             this.script = arg.script;
             this.scriptOffset = arg.scriptOffset;
             this.cs = arg.cs.clone();
-            this.locktimeRequirement = __assign({}, arg.locktimeRequirement);
-            this.sequenceRequirement = __assign({}, arg.sequenceRequirement);
             this.branches = arg.branches;
             this.branches.push(this);
         }
@@ -94,8 +92,6 @@ var ScriptAnalyzer = /** @class */ (function () {
             this.script = arg;
             this.scriptOffset = 0;
             this.cs = new ConditionStack();
-            this.locktimeRequirement = { exprs: [] };
-            this.sequenceRequirement = { exprs: [] };
             this.branches = [this];
         }
     }
@@ -116,11 +112,81 @@ var ScriptAnalyzer = /** @class */ (function () {
         var s = 'Spending paths:';
         for (var _a = 0, _b = analyzer.branches; _a < _b.length; _a++) {
             var a = _b[_a];
-            var locktime = ScriptAnalyzer.locktimeRequirementToString(a.locktimeRequirement, function (d) { return new Date(d).toString(); });
-            var sequence = ScriptAnalyzer.locktimeRequirementToString(a.sequenceRequirement, Util.relativeTimelockToString);
-            s += "\n\n\t\t\t\tStack item requirements:\t\t\t\t".concat(a.spendingConditions.length ? '\n' + a.spendingConditions.map(function (expr) { return Expr.toString(expr); }).join('\n') : ' none', "\n\t\t\t\tLocktime requirement: ").concat(locktime !== null && locktime !== void 0 ? locktime : 'no', "\n\t\t\t\tSequence requirement: ").concat(sequence !== null && sequence !== void 0 ? sequence : (locktime ? 'non-final (not 0xffffffff)' : 'no'));
+            // TODO if the last branch fails here 'Spending paths:' is printed to the div
+            var r = a.calculateLocktimeRequirements();
+            if (typeof r === 'number') {
+                continue;
+            }
+            var locktime = ScriptAnalyzer.locktimeRequirementToString(r.locktimeRequirement, function (d) { return new Date(d).toString(); });
+            var sequence = ScriptAnalyzer.locktimeRequirementToString(r.sequenceRequirement, Util.relativeTimelockToString);
+            s += "\n\n\t\t\t\tStack size: ".concat(a.stackIndex, "\n\t\t\t\tStack item requirements:\t\t\t\t").concat(a.spendingConditions.length ? '\n' + a.spendingConditions.map(function (expr) { return Expr.toString(expr); }).join('\n') : ' none', "\n\t\t\t\tLocktime requirement: ").concat(locktime !== null && locktime !== void 0 ? locktime : 'no', "\n\t\t\t\tSequence requirement: ").concat(sequence !== null && sequence !== void 0 ? sequence : (locktime ? 'non-final (not 0xffffffff)' : 'no'));
         }
         return s;
+    };
+    ScriptAnalyzer.prototype.calculateLocktimeRequirements = function () {
+        var locktimeRequirement = { exprs: [] };
+        var sequenceRequirement = { exprs: [] };
+        for (var i = 0; i < this.spendingConditions.length; i++) {
+            var expr = this.spendingConditions[i];
+            if ('opcode' in expr) {
+                var arg = expr.args[0];
+                switch (expr.opcode) {
+                    case opcodes.OP_CHECKLOCKTIMEVERIFY: {
+                        if (arg instanceof Uint8Array) {
+                            var minValue = ScriptConv.Int.decode(arg);
+                            if (minValue < 0) {
+                                return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
+                            }
+                            var type = minValue < 500000000 ? 'height' : 'time';
+                            if ('type' in locktimeRequirement) {
+                                if (locktimeRequirement.type !== type) {
+                                    return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
+                                }
+                                if (locktimeRequirement.minValue < minValue) {
+                                    locktimeRequirement.minValue = minValue;
+                                }
+                            }
+                            else {
+                                locktimeRequirement = __assign(__assign({}, locktimeRequirement), { type: type, minValue: minValue });
+                            }
+                        }
+                        else {
+                            locktimeRequirement.exprs.push(arg);
+                        }
+                        this.spendingConditions.splice(i, 1);
+                        i--;
+                        break;
+                    }
+                    case opcodes.OP_CHECKSEQUENCEVERIFY: {
+                        if (arg instanceof Uint8Array) {
+                            var minValue = maskSequence(ScriptConv.Int.decode(arg));
+                            if (minValue < 0) {
+                                return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
+                            }
+                            var type = minValue < 0x400000 ? 'height' : 'time';
+                            if ('type' in sequenceRequirement) {
+                                if (sequenceRequirement.type !== type) {
+                                    return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
+                                }
+                                if (sequenceRequirement.minValue < minValue) {
+                                    sequenceRequirement.minValue = minValue;
+                                }
+                            }
+                            else {
+                                sequenceRequirement = __assign(__assign({}, sequenceRequirement), { type: type, minValue: minValue });
+                            }
+                        }
+                        else {
+                            sequenceRequirement.exprs.push(arg);
+                        }
+                        this.spendingConditions.splice(i, 1);
+                        i--;
+                        break;
+                    }
+                }
+            }
+        }
+        return { locktimeRequirement: locktimeRequirement, sequenceRequirement: sequenceRequirement };
     };
     ScriptAnalyzer.locktimeRequirementToString = function (l, timeToString) {
         if (!(l.exprs.length || 'type' in l)) {
@@ -129,54 +195,75 @@ var ScriptAnalyzer = /** @class */ (function () {
         var type = 'type' in l ? l.type : 'unknown';
         return "type: ".concat(type, ", minValue: ").concat('type' in l ? (type === 'time' ? timeToString(l.minValue) : l.minValue) : 'unknown').concat(l.exprs.length ? ", stack elements: ".concat(l.exprs.map(function (expr) { return Expr.toString(expr); }).join(', ')) : '');
     };
+    // TODO instance method per branch
     ScriptAnalyzer.prototype.cleanupConditions = function () {
-        for (var i = 0; i < this.branches.length; i++) {
+        i: for (var i = 0; i < this.branches.length; i++) {
             var exprs = this.branches[i].spendingConditions;
             Expr.normalizeExprs(exprs);
-            exprs: for (var j = 0; j < exprs.length; j++) {
+            j: for (var j = 0; j < exprs.length; j++) {
                 var expr = exprs[j];
                 if (expr instanceof Uint8Array) {
                     if (ScriptConv.Bool.decode(expr)) {
                         exprs.splice(j, 1);
                         j--;
-                        continue;
+                        continue j;
                     }
                     else {
                         this.branches.splice(i, 1);
                         i--;
-                        break;
+                        continue i;
                     }
                 }
-                for (var k = 0; k < exprs.length; k++) {
+                k: for (var k = 0; k < exprs.length; k++) {
                     if (j === k) {
-                        continue;
+                        continue k;
                     }
                     var expr2 = exprs[k];
                     if (Expr.equal(expr, expr2)) {
                         // (a && a) == a
                         exprs.splice(k, 1);
-                        if (j > k) {
-                            j--;
-                        }
-                        k--;
+                        i--;
+                        continue i;
                     }
-                    else if ('opcode' in expr &&
+                    if ('opcode' in expr &&
                         (expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
                         Expr.equal(expr.args[0], expr2)) {
                         // (a && !a) == 0
                         this.branches.splice(i, 1);
                         i--;
-                        break exprs;
+                        continue i;
                     }
-                    else if ('opcode' in expr &&
-                        expr.opcode === opcodes.OP_EQUAL &&
-                        Expr.priority(expr.args[1]) < Expr.priority(expr.args[0])) {
+                    if ('opcode' in expr &&
+                        expr.opcode === opcodes.OP_EQUAL // &&
+                    // Expr.priority(expr.args[1]) < Expr.priority(expr.args[0])
+                    ) {
                         // (a == b && f(a)) -> f(b)
                         var res = Expr.replaceAllIn(expr.args[0], expr.args[1], expr2);
                         if (!Expr.equal(expr2, res)) {
                             exprs[k] = res;
-                            j = k - 1;
-                            continue exprs;
+                            i--;
+                            continue i;
+                        }
+                    }
+                    if ('opcode' in expr && returnsBoolean.includes(expr.opcode)) {
+                        // (a && f(a)) -> f(<01>)
+                        var res = Expr.replaceAllIn(expr, ScriptConv.Bool.TRUE, expr2);
+                        if (!Expr.equal(expr2, res)) {
+                            exprs[k] = res;
+                            i--;
+                            continue i;
+                        }
+                    }
+                    if ('opcode' in expr &&
+                        (expr.opcode === opcodes.OP_NOT || expr.opcode === opcodes.INTERNAL_NOT) &&
+                        'opcode' in expr.args[0] &&
+                        returnsBoolean.includes(expr.args[0].opcode)) {
+                        // (!a && f(a)) -> f(<>)
+                        var res = Expr.replaceAllIn(expr.args[0], ScriptConv.Bool.FALSE, expr2);
+                        if (!Expr.equal(expr2, res)) {
+                            exprs[k] = res;
+                            i--;
+                            continue i;
                         }
                     }
                 }
@@ -192,7 +279,7 @@ var ScriptAnalyzer = /** @class */ (function () {
                         console.log("DEBUG cleanupConditions: spending path returned error: ".concat(scriptErrorString(e)));
                         this.branches.splice(i, 1);
                         i--;
-                        break;
+                        continue i;
                     }
                     else {
                         throw e;
@@ -226,10 +313,9 @@ var ScriptAnalyzer = /** @class */ (function () {
             }
             else {
                 switch (op) {
-                    case opcodes.OP_0: {
+                    case opcodes.OP_0:
                         this.stack.push(new Uint8Array([]));
                         break;
-                    }
                     case opcodes.OP_1:
                     case opcodes.OP_2:
                     case opcodes.OP_3:
@@ -245,13 +331,11 @@ var ScriptAnalyzer = /** @class */ (function () {
                     case opcodes.OP_13:
                     case opcodes.OP_14:
                     case opcodes.OP_15:
-                    case opcodes.OP_16: {
+                    case opcodes.OP_16:
                         this.stack.push(new Uint8Array([op - 0x50]));
                         break;
-                    }
-                    case opcodes.OP_NOP: {
+                    case opcodes.OP_NOP:
                         break;
-                    }
                     case opcodes.OP_IF:
                     case opcodes.OP_NOTIF: {
                         if (fExec) {
@@ -279,56 +363,46 @@ var ScriptAnalyzer = /** @class */ (function () {
                         }
                         break;
                     }
-                    case opcodes.OP_ELSE: {
+                    case opcodes.OP_ELSE:
                         if (this.cs.empty()) {
                             return ScriptError.SCRIPT_ERR_UNBALANCED_CONDITIONAL;
                         }
                         this.cs.toggle_top();
                         break;
-                    }
-                    case opcodes.OP_ENDIF: {
+                    case opcodes.OP_ENDIF:
                         if (this.cs.empty()) {
                             return ScriptError.SCRIPT_ERR_UNBALANCED_CONDITIONAL;
                         }
                         this.cs.pop_back();
                         break;
-                    }
-                    case opcodes.OP_VERIFY: {
+                    case opcodes.OP_VERIFY:
                         if (!this.verify()) {
                             return ScriptError.SCRIPT_ERR_VERIFY;
                         }
                         break;
-                    }
-                    case opcodes.OP_RETURN: {
+                    case opcodes.OP_RETURN:
                         return ScriptError.SCRIPT_ERR_OP_RETURN;
-                    }
-                    case opcodes.OP_TOALTSTACK: {
+                    case opcodes.OP_TOALTSTACK:
                         this.altstack.push(this.takeElements(1)[0]);
                         break;
-                    }
-                    case opcodes.OP_FROMALTSTACK: {
+                    case opcodes.OP_FROMALTSTACK:
                         if (!this.altstack.length) {
                             return ScriptError.SCRIPT_ERR_INVALID_ALTSTACK_OPERATION;
                         }
                         this.stack.push(this.altstack.pop());
                         break;
-                    }
-                    case opcodes.OP_2DROP: {
+                    case opcodes.OP_2DROP:
                         this.takeElements(2);
                         break;
-                    }
-                    case opcodes.OP_2DUP: {
+                    case opcodes.OP_2DUP:
                         (_a = this.stack).push.apply(_a, this.readElements(2));
                         break;
-                    }
-                    case opcodes.OP_3DUP: {
+                    case opcodes.OP_3DUP:
                         (_b = this.stack).push.apply(_b, this.readElements(3));
                         break;
-                    }
-                    case opcodes.OP_2OVER: {
+                    case opcodes.OP_2OVER:
                         (_c = this.stack).push.apply(_c, this.readElements(4).slice(0, 2));
                         break;
-                    }
                     case opcodes.OP_2ROT: {
                         var elems = this.takeElements(6);
                         (_d = this.stack).push.apply(_d, __spreadArray(__spreadArray([], elems.slice(2), false), elems.slice(0, 2), false));
@@ -348,26 +422,21 @@ var ScriptAnalyzer = /** @class */ (function () {
                         fork.analyze();
                         break;
                     }
-                    case opcodes.OP_DEPTH: {
+                    case opcodes.OP_DEPTH:
                         this.stack.push(ScriptConv.Int.encode(this.stack.length));
                         break;
-                    }
-                    case opcodes.OP_DROP: {
+                    case opcodes.OP_DROP:
                         this.takeElements(1);
                         break;
-                    }
-                    case opcodes.OP_DUP: {
+                    case opcodes.OP_DUP:
                         this.stack.push(this.readElements(1)[0]);
                         break;
-                    }
-                    case opcodes.OP_NIP: {
+                    case opcodes.OP_NIP:
                         this.stack.push(this.takeElements(2)[1]);
                         break;
-                    }
-                    case opcodes.OP_OVER: {
+                    case opcodes.OP_OVER:
                         this.stack.push(this.readElements(2)[0]);
                         break;
-                    }
                     case opcodes.OP_PICK:
                     case opcodes.OP_ROLL: {
                         var index = this.numFromStack(op);
@@ -399,27 +468,29 @@ var ScriptAnalyzer = /** @class */ (function () {
                         (_g = this.stack).push.apply(_g, __spreadArray([elems[1]], elems, false));
                         break;
                     }
-                    case opcodes.OP_SIZE: {
+                    case opcodes.OP_SIZE:
                         this.stack.push({ opcode: op, args: this.readElements(1) });
                         break;
-                    }
                     case opcodes.OP_EQUAL:
-                    case opcodes.OP_EQUALVERIFY: {
+                    case opcodes.OP_EQUALVERIFY:
                         this.stack.push({ opcode: opcodes.OP_EQUAL, args: this.takeElements(2) });
                         if (op === opcodes.OP_EQUALVERIFY && !this.verify()) {
                             return ScriptError.SCRIPT_ERR_EQUALVERIFY;
                         }
                         break;
-                    }
                     case opcodes.OP_1ADD:
                     case opcodes.OP_1SUB:
+                        this.stack.push({
+                            opcode: op === opcodes.OP_1ADD ? opcodes.OP_ADD : opcodes.OP_SUB,
+                            args: [this.takeElements(1)[0], new Uint8Array([1])]
+                        });
+                        break;
                     case opcodes.OP_NEGATE:
                     case opcodes.OP_ABS:
                     case opcodes.OP_NOT:
-                    case opcodes.OP_0NOTEQUAL: {
+                    case opcodes.OP_0NOTEQUAL:
                         this.stack.push({ opcode: op, args: this.takeElements(1) });
                         break;
-                    }
                     case opcodes.OP_ADD:
                     case opcodes.OP_SUB:
                     case opcodes.OP_BOOLAND:
@@ -432,7 +503,7 @@ var ScriptAnalyzer = /** @class */ (function () {
                     case opcodes.OP_LESSTHANOREQUAL:
                     case opcodes.OP_GREATERTHANOREQUAL:
                     case opcodes.OP_MIN:
-                    case opcodes.OP_MAX: {
+                    case opcodes.OP_MAX:
                         this.stack.push({
                             opcode: op === opcodes.OP_NUMEQUALVERIFY ? opcodes.OP_NUMEQUAL : op,
                             args: this.takeElements(2)
@@ -441,30 +512,25 @@ var ScriptAnalyzer = /** @class */ (function () {
                             return ScriptError.SCRIPT_ERR_NUMEQUALVERIFY;
                         }
                         break;
-                    }
-                    case opcodes.OP_WITHIN: {
+                    case opcodes.OP_WITHIN:
                         this.stack.push({ opcode: op, args: this.takeElements(3) });
                         break;
-                    }
                     case opcodes.OP_RIPEMD160:
                     case opcodes.OP_SHA1:
                     case opcodes.OP_SHA256:
                     case opcodes.OP_HASH160:
-                    case opcodes.OP_HASH256: {
+                    case opcodes.OP_HASH256:
                         this.stack.push({ opcode: op, args: this.takeElements(1) });
                         break;
-                    }
-                    case opcodes.OP_CODESEPARATOR: {
+                    case opcodes.OP_CODESEPARATOR:
                         break;
-                    }
                     case opcodes.OP_CHECKSIG:
-                    case opcodes.OP_CHECKSIGVERIFY: {
+                    case opcodes.OP_CHECKSIGVERIFY:
                         this.stack.push({ opcode: opcodes.OP_CHECKSIG, args: this.takeElements(2) });
                         if (op === opcodes.OP_CHECKSIGVERIFY && !this.verify()) {
                             return ScriptError.SCRIPT_ERR_CHECKSIGVERIFY;
                         }
                         break;
-                    }
                     case opcodes.OP_CHECKMULTISIG:
                     case opcodes.OP_CHECKMULTISIGVERIFY: {
                         if (this.version === ScriptVersion.SEGWITV1) {
@@ -504,54 +570,9 @@ var ScriptAnalyzer = /** @class */ (function () {
                         }
                         break;
                     }
-                    case opcodes.OP_CHECKLOCKTIMEVERIFY: {
-                        var arg = this.readElements(1)[0];
-                        if (arg instanceof Uint8Array) {
-                            var minValue = ScriptConv.Int.decode(arg);
-                            if (minValue < 0) {
-                                return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
-                            }
-                            var type = minValue < 500000000 ? 'height' : 'time';
-                            if ('type' in this.locktimeRequirement) {
-                                if (this.locktimeRequirement.type !== type) {
-                                    return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
-                                }
-                                if (this.locktimeRequirement.minValue < minValue) {
-                                    this.locktimeRequirement.minValue = minValue;
-                                }
-                            }
-                            else {
-                                this.locktimeRequirement = __assign(__assign({}, this.locktimeRequirement), { type: type, minValue: minValue });
-                            }
-                        }
-                        else {
-                            this.locktimeRequirement.exprs.push(arg);
-                        }
-                        break;
-                    }
+                    case opcodes.OP_CHECKLOCKTIMEVERIFY:
                     case opcodes.OP_CHECKSEQUENCEVERIFY: {
-                        var arg = this.readElements(1)[0];
-                        if (arg instanceof Uint8Array) {
-                            var minValue = maskSequence(ScriptConv.Int.decode(arg));
-                            if (minValue < 0) {
-                                return ScriptError.SCRIPT_ERR_NEGATIVE_LOCKTIME;
-                            }
-                            var type = minValue < 0x400000 ? 'height' : 'time';
-                            if ('type' in this.sequenceRequirement) {
-                                if (this.sequenceRequirement.type !== type) {
-                                    return ScriptError.SCRIPT_ERR_UNSATISFIED_LOCKTIME;
-                                }
-                                if (this.sequenceRequirement.minValue < minValue) {
-                                    this.sequenceRequirement.minValue = minValue;
-                                }
-                            }
-                            else {
-                                this.sequenceRequirement = __assign(__assign({}, this.sequenceRequirement), { type: type, minValue: minValue });
-                            }
-                        }
-                        else {
-                            this.sequenceRequirement.exprs.push(arg);
-                        }
+                        this.spendingConditions.push({ opcode: op, args: this.readElements(1) });
                         break;
                     }
                     case opcodes.OP_NOP1:
@@ -561,20 +582,18 @@ var ScriptAnalyzer = /** @class */ (function () {
                     case opcodes.OP_NOP7:
                     case opcodes.OP_NOP8:
                     case opcodes.OP_NOP9:
-                    case opcodes.OP_NOP10: {
+                    case opcodes.OP_NOP10:
                         break;
-                    }
                     case opcodes.OP_CHECKSIGADD: {
-                        if (this.version < ScriptVersion.SEGWITV1) {
+                        if (this.version !== ScriptVersion.SEGWITV1) {
                             return ScriptError.SCRIPT_ERR_BAD_OPCODE;
                         }
                         var _h = this.takeElements(3), sig = _h[0], n = _h[1], pk = _h[2];
                         this.stack.push({ opcode: opcodes.OP_ADD, args: [n, { opcode: opcodes.OP_CHECKSIG, args: [sig, pk] }] });
                         break;
                     }
-                    default: {
+                    default:
                         return ScriptError.SCRIPT_ERR_BAD_OPCODE;
-                    }
                 }
             }
             /*
@@ -1372,6 +1391,7 @@ function asmUpdate() {
     }
     runAnalyzer();
 }
+var indentWidth = 2;
 function hexUpdate() {
     try {
         script = parseHexScript(html.hex.innerText);
@@ -1379,7 +1399,13 @@ function hexUpdate() {
         scriptToAsm(script).forEach(function (e) {
             var span = document.createElement('span');
             span.innerText = e.s;
-            span.classList.add("script-".concat(OpcodeType[e.t].toLowerCase()));
+            span.classList.add("script-".concat(OpcodeType[e.type].toLowerCase()));
+            if (e.indent) {
+                var indent = document.createElement('span');
+                indent.classList.add('indent');
+                indent.innerText = ' '.repeat(e.indent * indentWidth);
+                html.asm.appendChild(indent);
+            }
             html.asm.appendChild(span);
             html.asm.appendChild(document.createElement('br'));
         });
@@ -1513,7 +1539,11 @@ function getScript(apiURL, address) {
         });
     });
 }
-var _a;
+// all bitcoin script opcodes
+var _a, _b;
+/** Opcode names mapped to their opcode.
+ * Negative numbers are used for _internal_ opcodes. These opcodes **do not** exist in bitcoin and are used in scriptanalyzer to accurately mimic the behavior of other opcodes.
+ */
 var opcodes = {
     // https://github.com/bitcoin/bitcoin/blob/fa5c896724bb359b4b9a3f89580272bfe5980c1b/src/script/script.h#L65-L206
     // push value
@@ -1646,9 +1676,22 @@ var opcodes = {
     OP_CLTV: 0xb1,
     OP_CSV: 0xb2,
     // internal opcodes (not used in bitcoin core)
+    /** Unlike OP_NOT, INTERNAL_NOT does not require the input to be max 4 bytes.
+     * Equivalent to IF 0 ELSE 1 ENDIF without minimal if
+     */
     INTERNAL_NOT: -1
 };
-/** Disabled because of CVE-2010-5137 */
+/** Returns the name of the opcode. Returns undefined for nonexistent and internal opcodes */
+function opcodeName(op) {
+    if (op < 0) {
+        return;
+    }
+    var o = Object.entries(opcodes).find(function (x) { return x[1] === op; });
+    if (o) {
+        return o[0];
+    }
+}
+/** Opcodes that were disabled because of CVE-2010-5137 */
 var disabledOpcodes = [
     opcodes.OP_CAT,
     opcodes.OP_SUBSTR,
@@ -1666,11 +1709,14 @@ var disabledOpcodes = [
     opcodes.OP_LSHIFT,
     opcodes.OP_RSHIFT
 ];
+/** Opcodes that push data mapped to the length of the following number (that indicated the push size) */
 var pushdataLength = (_a = {},
     _a[opcodes.OP_PUSHDATA1] = 1,
     _a[opcodes.OP_PUSHDATA2] = 2,
     _a[opcodes.OP_PUSHDATA4] = 4,
     _a);
+// opcodes used in expressions (subset)
+/** Opcodes that return <> or <01> */
 var returnsBoolean = [
     opcodes.OP_EQUAL,
     opcodes.OP_NOT,
@@ -1688,6 +1734,17 @@ var returnsBoolean = [
     opcodes.OP_CHECKMULTISIG,
     opcodes.INTERNAL_NOT
 ];
+/** Opcodes that return max 5 bytes */
+var returnsNumber = __spreadArray(__spreadArray([], returnsBoolean, true), [
+    opcodes.OP_SIZE,
+    opcodes.OP_NEGATE,
+    opcodes.OP_ABS,
+    opcodes.OP_ADD,
+    opcodes.OP_SUB,
+    opcodes.OP_MIN,
+    opcodes.OP_MAX
+], false);
+/** Opcodes that will behave differently when arguments are reordered */
 var argumentOrderMatters = [
     opcodes.OP_SUB,
     opcodes.OP_LESSTHAN,
@@ -1698,15 +1755,14 @@ var argumentOrderMatters = [
     opcodes.OP_CHECKSIG,
     opcodes.OP_CHECKMULTISIG
 ];
-function opcodeName(op) {
-    if (op < 0) {
-        return;
-    }
-    var o = Object.entries(opcodes).find(function (x) { return x[1] === op; });
-    if (o) {
-        return o[0];
-    }
-}
+/** Opcodes that have a fixed output length (hash functions) mapped to their output length */
+var outputLength = (_b = {},
+    _b[opcodes.OP_RIPEMD160] = 20,
+    _b[opcodes.OP_SHA1] = 20,
+    _b[opcodes.OP_SHA256] = 32,
+    _b[opcodes.OP_HASH160] = 20,
+    _b[opcodes.OP_HASH256] = 32,
+    _b);
 function asmtohex(asm) {
     var src = asm.split(/\s+/).filter(function (x) { return x; });
     var script = '';
@@ -1753,7 +1809,8 @@ function asmtohex(asm) {
             script += hex;
         }
         else {
-            var opcode = opcodes[op.toUpperCase()] || opcodes[('OP_' + op.toUpperCase())];
+            var opcode = opcodes[op.toUpperCase()] ||
+                opcodes[('OP_' + op.toUpperCase())];
             if (opcode === undefined || opcode < 0) {
                 throw "Unknown opcode ".concat(op.length > 50 ? op.slice(0, 50) + '..' : op).concat(/^[0-9a-fA-F]+$/.test(op) ? '. Hex data pushes have to be between < and >' : '');
             }
@@ -1861,25 +1918,32 @@ function getRedeemScript(scriptSigHex) {
 }
 function scriptToAsm(script) {
     var asm = [];
+    var indent = 0;
     for (var _i = 0, script_2 = script; _i < script_2.length; _i++) {
         var op = script_2[_i];
         if (op instanceof Uint8Array) {
             if (op.length <= 4) {
-                asm.push({ s: '' + ScriptConv.Int.decode(op), t: OpcodeType.NUMBER });
+                asm.push({ s: '' + ScriptConv.Int.decode(op), type: OpcodeType.NUMBER, indent: indent });
             }
             else {
-                asm.push({ s: Util.scriptElemToHex(op), t: OpcodeType.DATA });
+                asm.push({ s: Util.scriptElemToHex(op), type: OpcodeType.DATA, indent: indent });
             }
         }
         else {
             if (op === opcodes.OP_0) {
-                asm.push({ s: '0', t: OpcodeType.NUMBER });
+                asm.push({ s: '0', type: OpcodeType.NUMBER, indent: indent });
             }
             else if ((op >= opcodes.OP_1 && op <= opcodes.OP_16) || op === opcodes.OP_1NEGATE) {
-                asm.push({ s: '' + (op - 0x50), t: OpcodeType.NUMBER });
+                asm.push({ s: '' + (op - 0x50), type: OpcodeType.NUMBER, indent: indent });
             }
             else {
-                asm.push({ s: opcodeName(op) || 'OP_INVALIDOPCODE', t: opcodeType(op) });
+                if ([opcodes.OP_ELSE, opcodes.OP_ENDIF].includes(op) && indent > 0) {
+                    indent--;
+                }
+                asm.push({ s: opcodeName(op) || 'OP_INVALIDOPCODE', type: opcodeType(op), indent: indent });
+                if ([opcodes.OP_IF, opcodes.OP_NOTIF, opcodes.OP_ELSE].includes(op)) {
+                    indent++;
+                }
             }
         }
     }

@@ -1,3 +1,8 @@
+// all bitcoin script opcodes
+
+/** Opcode names mapped to their opcode.
+ * Negative numbers are used for _internal_ opcodes. These opcodes **do not** exist in bitcoin and are used in scriptanalyzer to accurately mimic the behavior of other opcodes.
+ */
 const opcodes = {
 	// https://github.com/bitcoin/bitcoin/blob/fa5c896724bb359b4b9a3f89580272bfe5980c1b/src/script/script.h#L65-L206
 
@@ -145,10 +150,24 @@ const opcodes = {
 	OP_CSV: 0xb2,
 
 	// internal opcodes (not used in bitcoin core)
+	/** Unlike OP_NOT, INTERNAL_NOT does not require the input to be max 4 bytes.
+	 * Equivalent to IF 0 ELSE 1 ENDIF without minimal if
+	 */
 	INTERNAL_NOT: -1
 };
 
-/** Disabled because of CVE-2010-5137 */
+/** Returns the name of the opcode. Returns undefined for nonexistent and internal opcodes */
+function opcodeName(op: number): string | undefined {
+	if (op < 0) {
+		return;
+	}
+	const o = Object.entries(opcodes).find(x => x[1] === op);
+	if (o) {
+		return o[0];
+	}
+}
+
+/** Opcodes that were disabled because of CVE-2010-5137 */
 const disabledOpcodes = [
 	opcodes.OP_CAT,
 	opcodes.OP_SUBSTR,
@@ -167,12 +186,16 @@ const disabledOpcodes = [
 	opcodes.OP_RSHIFT
 ];
 
+/** Opcodes that push data mapped to the length of the following number (that indicated the push size) */
 const pushdataLength = {
 	[opcodes.OP_PUSHDATA1]: 1,
 	[opcodes.OP_PUSHDATA2]: 2,
 	[opcodes.OP_PUSHDATA4]: 4
 };
 
+// opcodes used in expressions (subset)
+
+/** Opcodes that return <> or <01> */
 const returnsBoolean = [
 	opcodes.OP_EQUAL,
 	opcodes.OP_NOT,
@@ -191,6 +214,19 @@ const returnsBoolean = [
 	opcodes.INTERNAL_NOT
 ];
 
+/** Opcodes that return max 5 bytes */
+const returnsNumber = [
+	...returnsBoolean,
+	opcodes.OP_SIZE,
+	opcodes.OP_NEGATE,
+	opcodes.OP_ABS,
+	opcodes.OP_ADD,
+	opcodes.OP_SUB,
+	opcodes.OP_MIN,
+	opcodes.OP_MAX
+];
+
+/** Opcodes that will behave differently when arguments are reordered */
 const argumentOrderMatters = [
 	opcodes.OP_SUB,
 	opcodes.OP_LESSTHAN,
@@ -202,12 +238,11 @@ const argumentOrderMatters = [
 	opcodes.OP_CHECKMULTISIG
 ];
 
-function opcodeName(op: number): string | void {
-	if (op < 0) {
-		return;
-	}
-	const o = Object.entries(opcodes).find(x => x[1] === op);
-	if (o) {
-		return o[0];
-	}
-}
+/** Opcodes that have a fixed output length (hash functions) mapped to their output length */
+const outputLength = {
+	[opcodes.OP_RIPEMD160]: 20,
+	[opcodes.OP_SHA1]: 20,
+	[opcodes.OP_SHA256]: 32,
+	[opcodes.OP_HASH160]: 20,
+	[opcodes.OP_HASH256]: 32
+};

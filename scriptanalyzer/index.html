@@ -34,7 +34,8 @@
 			border: 1px solid black;
 			border-radius: 5px;
 			font: 14px monospace;
-			overflow-y: auto;
+			overflow-y: scroll;
+			overflow-wrap: break-word;
 		}
 
 		.input {
@@ -65,6 +66,10 @@
 
 		#chain-import-error {
 			color: red;
+		}
+
+		.indent {
+			white-space: pre;
 		}
 	</style>
 </head>
