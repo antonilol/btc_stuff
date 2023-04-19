@@ -25,6 +25,7 @@ jobs:
           sudo cp -r bitcoin-24.0.1/* /usr/local
       - name: Start Bitcoin Core
         run: |
+          mkdir -p ~/.bitcoin
           cp .github/workflows/bitcoin.conf ~/.bitcoin/bitcoin.conf
           bitcoind -regtest -daemonwait
           bitcoin-cli -regtest createwallet ghactions
