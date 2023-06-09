@@ -178,22 +178,22 @@ class ScriptAnalyzer {
 		i: for (let i = 0; i < this.branches.length; i++) {
 			const exprs = this.branches[i].spendingConditions;
 			Expr.normalizeExprs(exprs);
-			j: for (let j = 0; j < exprs.length; j++) {
+			for (let j = 0; j < exprs.length; j++) {
 				const expr = exprs[j];
 				if (expr instanceof Uint8Array) {
 					if (ScriptConv.Bool.decode(expr)) {
 						exprs.splice(j, 1);
 						j--;
-						continue j;
+						continue;
 					} else {
 						this.branches.splice(i, 1);
 						i--;
 						continue i;
 					}
 				}
-				k: for (let k = 0; k < exprs.length; k++) {
+				for (let k = 0; k < exprs.length; k++) {
 					if (j === k) {
-						continue k;
+						continue;
 					}
 					const expr2 = exprs[k];
 					if (Expr.equal(expr, expr2)) {
@@ -495,6 +495,9 @@ class ScriptAnalyzer {
 						break;
 
 					case opcodes.OP_NEGATE:
+						this.stack.push({ opcode: opcodes.OP_SUB, args: [ new Uint8Array(), this.takeElements(1)[0] ] });
+						break;
+
 					case opcodes.OP_ABS:
 					case opcodes.OP_NOT:
 					case opcodes.OP_0NOTEQUAL:

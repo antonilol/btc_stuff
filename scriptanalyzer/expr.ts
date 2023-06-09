@@ -148,6 +148,14 @@ namespace Expr {
 						}
 						return ScriptConv.Bool.not(arg);
 					}
+					if (
+						'opcode' in arg &&
+						(arg.opcode === opcodes.OP_NOT || arg.opcode === opcodes.INTERNAL_NOT) &&
+						(('opcode' in arg.args[0] && returnsBoolean.includes(arg.args[0].opcode)) ||
+							('index' in arg.args[0] && depth === 0))
+					) {
+						return arg.args[0];
+					}
 					if (depth === 0 && 'opcode' in arg && arg.opcode === opcodes.OP_CHECKSIG && ctx.rules === ScriptRules.ALL) {
 						// assumes valid pubkey TODO fix
 						return { opcode: opcodes.OP_EQUAL, args: [ arg.args[0], ScriptConv.Bool.FALSE ] };
@@ -246,9 +254,9 @@ type StackExpr = { index: number };
 type ExprType = 'pubkey' | 'preimage' | 'signature';
 type Expr =
 	| ((OpcodeExpr | StackExpr) & {
-			types?: ExprType[];
-			values?: Uint8Array[];
-			len?: number[];
+			// types?: ExprType[];
+			// values?: Uint8Array[];
+			// len?: number[];
 			error?: ScriptError;
 	  })
 	| Uint8Array;

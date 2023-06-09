@@ -200,13 +200,13 @@ var ScriptAnalyzer = /** @class */ (function () {
         i: for (var i = 0; i < this.branches.length; i++) {
             var exprs = this.branches[i].spendingConditions;
             Expr.normalizeExprs(exprs);
-            j: for (var j = 0; j < exprs.length; j++) {
+            for (var j = 0; j < exprs.length; j++) {
                 var expr = exprs[j];
                 if (expr instanceof Uint8Array) {
                     if (ScriptConv.Bool.decode(expr)) {
                         exprs.splice(j, 1);
                         j--;
-                        continue j;
+                        continue;
                     }
                     else {
                         this.branches.splice(i, 1);
@@ -214,9 +214,9 @@ var ScriptAnalyzer = /** @class */ (function () {
                         continue i;
                     }
                 }
-                k: for (var k = 0; k < exprs.length; k++) {
+                for (var k = 0; k < exprs.length; k++) {
                     if (j === k) {
-                        continue k;
+                        continue;
                     }
                     var expr2 = exprs[k];
                     if (Expr.equal(expr, expr2)) {
@@ -486,6 +486,8 @@ var ScriptAnalyzer = /** @class */ (function () {
                         });
                         break;
                     case opcodes.OP_NEGATE:
+                        this.stack.push({ opcode: opcodes.OP_SUB, args: [new Uint8Array(), this.takeElements(1)[0]] });
+                        break;
                     case opcodes.OP_ABS:
                     case opcodes.OP_NOT:
                     case opcodes.OP_0NOTEQUAL:
@@ -1006,6 +1008,12 @@ var Expr;
                             throw ScriptError.SCRIPT_ERR_NUM_OVERFLOW;
                         }
                         return ScriptConv.Bool.not(arg);
+                    }
+                    if ('opcode' in arg &&
+                        (arg.opcode === opcodes.OP_NOT || arg.opcode === opcodes.INTERNAL_NOT) &&
+                        (('opcode' in arg.args[0] && returnsBoolean.includes(arg.args[0].opcode)) ||
+                            ('index' in arg.args[0] && depth === 0))) {
+                        return arg.args[0];
                     }
                     if (depth === 0 && 'opcode' in arg && arg.opcode === opcodes.OP_CHECKSIG && ctx.rules === ScriptRules.ALL) {
                         // assumes valid pubkey TODO fix
