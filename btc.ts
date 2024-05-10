@@ -187,16 +187,17 @@ export interface ListUnspentArgs {
 export type TransactionType = string | Buffer | bitcoin.Transaction;
 export type PsbtType = string | bitcoin.Psbt;
 
-export type Chain = 'main' | 'test' | 'regtest' | 'signet';
+export type Chain = 'main' | 'test' | 'testnet4' | 'regtest' | 'signet';
 
 export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 	main: bitcoin.networks.bitcoin,
 	test: bitcoin.networks.testnet,
+	testnet4: bitcoin.networks.testnet,
 	regtest: bitcoin.networks.regtest,
 	signet: bitcoin.networks.testnet
 };
 
-let chain: Chain = 'test';
+let chain: Chain = 'testnet4';
 export let network = networks[chain];
 
 export async function btc(...args: (string | Buffer | number | {} | TransactionType | PsbtType)[]): Promise<string> {

@@ -48,10 +48,11 @@ var Uint256;
 exports.networks = {
     main: bitcoin.networks.bitcoin,
     test: bitcoin.networks.testnet,
+    testnet4: bitcoin.networks.testnet,
     regtest: bitcoin.networks.regtest,
     signet: bitcoin.networks.testnet
 };
-let chain = 'test';
+let chain = 'testnet4';
 exports.network = exports.networks[chain];
 async function btc(...args) {
     return new Promise((r, e) => {
