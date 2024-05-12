@@ -23,7 +23,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.consoleTrace = exports.sleep = exports.input = exports.inputOnEOF = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.p2pkh = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.setChain = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateDiv = exports.ecPrivateInv = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.fundOutputScript = exports.getBlockChainInfo = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTransaction = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
+exports.sleep = exports.input = exports.inputOnEOF = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.p2pkh = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateDiv = exports.ecPrivateInv = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.fundOutputScript = exports.getBlockChainInfo = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTransaction = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.chainEnvVarKey = exports.setChain = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
+exports.consoleTrace = void 0;
 const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const curve = __importStar(require("tiny-secp256k1"));
@@ -54,6 +55,21 @@ exports.networks = {
 };
 let chain = 'testnet4';
 exports.network = exports.networks[chain];
+function setChain(c) {
+    chain = c;
+    exports.network = exports.networks[chain];
+}
+exports.setChain = setChain;
+exports.chainEnvVarKey = 'BTC_STUFF_CHAIN';
+const chainEnvVarValue = process.env[exports.chainEnvVarKey];
+if (chainEnvVarValue) {
+    if (exports.networks[chainEnvVarValue]) {
+        setChain(chainEnvVarValue);
+    }
+    else {
+        console.error(`Invalid chain "${chainEnvVarValue}", leaving it unchanged (currently set to ${chain})`);
+    }
+}
 async function btc(...args) {
     return new Promise((r, e) => {
         const cmdargs = [`-chain=${chain}`, '-stdin'];
@@ -357,11 +373,6 @@ function createTaprootOutput(pubkey, root) {
     };
 }
 exports.createTaprootOutput = createTaprootOutput;
-function setChain(c) {
-    chain = c;
-    exports.network = exports.networks[chain];
-}
-exports.setChain = setChain;
 // Utils
 function encodeVarUintLE(n) {
     if (typeof n === 'number') {

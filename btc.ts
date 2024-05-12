@@ -200,6 +200,22 @@ export const networks: { [name in Chain]: bitcoin.networks.Network } = {
 let chain: Chain = 'testnet4';
 export let network = networks[chain];
 
+export function setChain(c: Chain): void {
+	chain = c;
+	network = networks[chain];
+}
+
+export const chainEnvVarKey = 'BTC_STUFF_CHAIN';
+
+const chainEnvVarValue = process.env[chainEnvVarKey];
+if (chainEnvVarValue) {
+	if (networks[chainEnvVarValue]) {
+		setChain(chainEnvVarValue as Chain);
+	} else {
+		console.error(`Invalid chain "${chainEnvVarValue}", leaving it unchanged (currently set to ${chain})`);
+	}
+}
+
 export async function btc(...args: (string | Buffer | number | {} | TransactionType | PsbtType)[]): Promise<string> {
 	return new Promise((r, e) => {
 		const cmdargs = [ `-chain=${chain}`, '-stdin' ];
@@ -737,11 +753,6 @@ export function createTaprootOutput(
 		scriptPubKey: bitcoin.script.compile([ bitcoin.opcodes.OP_1, key ]),
 		address: bitcoin.address.toBech32(key, 1, network.bech32)
 	};
-}
-
-export function setChain(c: Chain): void {
-	chain = c;
-	network = networks[chain];
 }
 
 // Utils
