@@ -51,7 +51,7 @@ if (args.length > 0) {
         process.exit(0);
     }
     if (!blocks || blocks < -1) {
-        console.log('Provide a positive integer or -1 for block limit');
+        console.log('Provide a positive integer or -1 for no block limit');
         process.exit(1);
     }
 }
