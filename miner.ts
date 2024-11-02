@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
 import {
 	btc,
@@ -157,7 +157,7 @@ async function getWork() {
 
 	const txcount = encodeVarUintLE(txs.length + 1);
 
-	const message = ' github.com/antonilol/btc_stuff >> New signet miner! << ';
+	const message = ' testnet4 ';
 	const address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
 
 	if (!address) {
@@ -203,7 +203,7 @@ async function getWork() {
 		}
 
 		// signing code, change to your own needs
-		const sighash = signetBlockSighash(block.slice(0, 72), Buffer.from(t.signet_challenge, 'hex')).legacy;
+		const sighash = signetBlockSighash(block.subarray(0, 72), Buffer.from(t.signet_challenge, 'hex')).legacy;
 
 		const scriptSig = bitcoin.script.compile([
 			bitcoin.script.signature.encode(
@@ -223,7 +223,16 @@ async function main() {
 	while (true) {
 		const work = await getWork();
 
-		const header = await mine(work.block.slice(0, 76));
+		const { result, terminate } = mine(work.block.subarray(0, 76));
+
+		// hacky way to check which of the two resolved first
+		if (typeof (await Promise.any([ result, btc('waitfornewblock') ])) === 'string') {
+			terminate();
+			console.log('Received block, restarting');
+			continue;
+		}
+
+		const header = await result;
 
 		if (header) {
 			header.copy(work.block);
@@ -256,38 +265,43 @@ async function main() {
 
 let first = true;
 
-function mine(header: Buffer): Promise<Buffer | void> {
-	return new Promise((r, e) => {
-		const args = [ header.toString('hex') ];
-		if (first) {
-			first = false;
-			args.push('info');
-		}
-		const p = spawn(minerd, args);
+function mine(header: Buffer): { result: Promise<Buffer | void>; terminate: () => void } {
+	let p: ChildProcessWithoutNullStreams;
 
-		let out = '';
-
-		p.stdout.setEncoding('utf8');
-		p.stdout.on('data', data => {
-			out += data.toString();
-		});
-
-		p.stderr.setEncoding('utf8');
-		p.stderr.pipe(process.stderr);
-
-		p.on('close', code => {
-			while (out.endsWith('\n')) {
-				out = out.slice(0, -1);
+	return {
+		result: new Promise((r, e) => {
+			const args = [ header.toString('hex') ];
+			if (first) {
+				first = false;
+				args.push('info');
 			}
-			if (code) {
-				e(out);
-			} else if (out) {
-				r(Buffer.from(out, 'hex'));
-			} else {
-				r();
-			}
-		});
-	});
+			p = spawn(minerd, args);
+
+			let out = '';
+
+			p.stdout.setEncoding('utf8');
+			p.stdout.on('data', data => {
+				out += data.toString();
+			});
+
+			p.stderr.setEncoding('utf8');
+			p.stderr.pipe(process.stderr);
+
+			p.on('close', code => {
+				while (out.endsWith('\n')) {
+					out = out.slice(0, -1);
+				}
+				if (code) {
+					e(out);
+				} else if (out) {
+					r(Buffer.from(out, 'hex'));
+				} else {
+					r();
+				}
+			});
+		}),
+		terminate: () => p.kill('SIGTERM')
+	};
 }
 
 function signetBlockSighash(
