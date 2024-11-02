@@ -1,10 +1,14 @@
-cpuminer
+# nodejs
 node_modules
+
+# miner.ts
+cpuminer
 mempool
 
 # chantools
 results
 
+# configs
 *.json
 !package.json
 !package-lock.json
