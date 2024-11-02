@@ -2,7 +2,7 @@
   "name": "btc_stuff",
   "scripts": {
     "build": "LANG=en_US.UTF-8 ls *.ts lightning/*.ts | sed 's/.s$/js linguist-generated/' > .gitattributes; tsc",
-    "format": "prettier --write *.ts */*.ts .github/workflows/*.yml",
+    "format": "shopt -s dotglob; prettier --write *.ts */*.ts *.json",
     "lint": "eslint --fix --max-warnings 0 *.ts */*.ts",
     "precommit": "npm run format && npm run lint && npm run build"
   },

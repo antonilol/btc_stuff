@@ -12,7 +12,6 @@
     "no-constant-condition": 0,
     "no-empty": 0,
     "prefer-const": 1,
-    "array-bracket-spacing": [ 1, "always" ],
     "no-inner-declarations": 0
   },
   "parser": "@typescript-eslint/parser",

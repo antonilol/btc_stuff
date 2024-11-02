@@ -13,3 +13,5 @@ results
 !package.json
 !package-lock.json
 !tsconfig.json
+!.prettierrc.json
+!.eslintrc.json
