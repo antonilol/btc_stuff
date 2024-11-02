@@ -16,27 +16,83 @@ import {
 } from './btc';
 import { merkleRoot } from './merkle_tree';
 import { randomBytes } from 'crypto';
-import { writeFileSync, unlinkSync, copyFileSync, readFileSync, readdirSync } from 'fs';
+import { writeFileSync, unlinkSync, copyFileSync, readFileSync, readdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
 import * as curve from 'tiny-secp256k1';
 import { ECPairFactory } from 'ecpair';
 
 const ECPair = ECPairFactory(curve);
 
-const minerd = `${dirname(process.argv[1])}/cpuminer/minerd`;
-
-// set to false to remove all segwit txs and skip witness commitment
-const segwit = true;
-
-// set to true to sign blocks according to BIP325
-const signet = false;
-
-if (signet) {
-	setChain('signet');
+interface Config {
+	/** Set to true to mine blocks with difficulty=1 */
+	difficulty1: boolean;
+	/** Path to minerd binary */
+	minerd_binary: string;
+	/** Set to false to remove all segwit txs and skip witness commitment */
+	segwit: boolean;
+	/** Set to true to sign blocks for use on signet (see BIP325) */
+	signet: boolean;
+	/** Address that will receive mining rewards */
+	coinbase_address: string;
+	/** Message to embed in the coinbase transaction */
+	coinbase_message: string;
 }
 
-// i say DONT CHEAT it is only here for me :)
-const cheat = false;
+function readConfig(): Config {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	function jsonType(value: any): string {
+		if (Array.isArray(value)) {
+			return 'array';
+		} else {
+			return typeof value;
+		}
+	}
+
+	const config: Config = {
+		difficulty1: false,
+		minerd_binary: `${dirname(process.argv[1])}/cpuminer/minerd`,
+		segwit: true,
+		signet: false,
+		coinbase_address: 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3',
+		coinbase_message: ' github.com/antonilol/btc_stuff '
+	};
+	const configFilePath = 'miner.json';
+
+	if (existsSync(configFilePath)) {
+		const configFile = JSON.parse(readFileSync(configFilePath).toString());
+		const errors: string[] = [];
+
+		Object.keys(config).forEach(key => {
+			const configFileValue = configFile[key];
+
+			if (configFileValue === undefined) {
+				return;
+			}
+
+			const expectedType = jsonType(config[key]);
+			const actualType = jsonType(configFileValue);
+
+			if (expectedType !== actualType) {
+				errors.push(`expected value of key "${key}" to have type ${expectedType} but found ${actualType}`);
+				return;
+			}
+
+			config[key] = configFileValue;
+		});
+
+		if (errors.length !== 0) {
+			throw new Error(`Invalid type${errors.length === 1 ? '' : 's'} in config file: ${errors.join(', ')}`);
+		}
+	}
+
+	return config;
+}
+
+const config = readConfig();
+
+if (config.signet) {
+	setChain('signet');
+}
 
 const args = process.argv.slice(2);
 
@@ -63,9 +119,9 @@ if (args.length > 1) {
 	}
 }
 
-// BIP141
+// see BIP141
 const wCommitHeader = Buffer.from('aa21a9ed', 'hex');
-// BIP325
+// see BIP325
 const signetHeader = Buffer.from('ecc7daa2', 'hex');
 
 function createCoinbase(
@@ -91,7 +147,7 @@ function createCoinbase(
 
 	const commits: Buffer[] = [];
 
-	if (segwit) {
+	if (config.segwit) {
 		// witness commitment
 		const wtxids: (string | Buffer)[] = txs.map(x => x.hash);
 		wtxids.splice(0, 0, Buffer.alloc(32));
@@ -102,7 +158,7 @@ function createCoinbase(
 		tx.setWitness(0, [ Buffer.alloc(32) ]);
 	}
 
-	if (signet) {
+	if (config.signet) {
 		// signet block signature
 		commits.push(Buffer.concat([ signetHeader, signetBlockSig ? signetBlockSig : Buffer.alloc(0) ]));
 	}
@@ -124,14 +180,14 @@ async function getWork() {
 		t = JSON.parse(readFileSync(templateFile).toString());
 	} else {
 		const req: TemplateRequest = { rules: [ 'segwit' ] };
-		if (signet) {
+		if (config.signet) {
 			req.rules.push('signet');
 		}
 		t = await getBlockTemplate(req);
 	}
 
 	let time: number;
-	if (cheat) {
+	if (config.difficulty1) {
 		const prev = await btc('getblockheader', t.previousblockhash);
 		time = JSON.parse(prev).time + 20 * 60 + 1;
 	} else {
@@ -145,7 +201,7 @@ async function getWork() {
 		await insertTransaction(t, tx);
 	}
 
-	if (!segwit) {
+	if (!config.segwit) {
 		let toRemove: BlockTemplateTX;
 		let removed = 0;
 		while ((toRemove = t.transactions.find(x => x.hash != x.txid))) {
@@ -157,20 +213,20 @@ async function getWork() {
 
 	const txcount = encodeVarUintLE(txs.length + 1);
 
-	const message = ' testnet4 ';
-	const address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
-
-	if (!address) {
-		consoleTrace.error('No payout address specified!');
-		process.exit(1);
-	}
-
 	const extraNonce = randomBytes(4);
 
 	let signetBlockSig: Buffer | undefined;
 
 	while (true) {
-		const coinbase = createCoinbase(address, t.coinbasevalue, t.height, txs, message, extraNonce, signetBlockSig);
+		const coinbase = createCoinbase(
+			config.coinbase_address,
+			t.coinbasevalue,
+			t.height,
+			txs,
+			config.coinbase_message,
+			extraNonce,
+			signetBlockSig
+		);
 
 		let txlen = coinbase.tx.length;
 		txs.forEach(tx => {
@@ -194,11 +250,11 @@ async function getWork() {
 		Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
 		mRoot.copy(block, 36);
 		block.writeUint32LE(time, 68);
-		Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex')
+		Buffer.from(config.difficulty1 ? '1d00ffff' : t.bits, 'hex')
 			.reverse()
 			.copy(block, 72);
 
-		if (!signet || signetBlockSig) {
+		if (!config.signet || signetBlockSig) {
 			return { block, mempool };
 		}
 
@@ -275,7 +331,7 @@ function mine(header: Buffer): { result: Promise<Buffer | void>; terminate: () =
 				first = false;
 				args.push('info');
 			}
-			p = spawn(minerd, args);
+			p = spawn(config.minerd_binary, args);
 
 			let out = '';
 

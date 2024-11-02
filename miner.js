@@ -33,16 +33,51 @@ const path_1 = require("path");
 const curve = __importStar(require("tiny-secp256k1"));
 const ecpair_1 = require("ecpair");
 const ECPair = (0, ecpair_1.ECPairFactory)(curve);
-const minerd = `${(0, path_1.dirname)(process.argv[1])}/cpuminer/minerd`;
-// set to false to remove all segwit txs and skip witness commitment
-const segwit = true;
-// set to true to sign blocks according to BIP325
-const signet = false;
-if (signet) {
+function readConfig() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function jsonType(value) {
+        if (Array.isArray(value)) {
+            return 'array';
+        }
+        else {
+            return typeof value;
+        }
+    }
+    const config = {
+        difficulty1: false,
+        minerd_binary: `${(0, path_1.dirname)(process.argv[1])}/cpuminer/minerd`,
+        segwit: true,
+        signet: false,
+        coinbase_address: 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3',
+        coinbase_message: ' github.com/antonilol/btc_stuff '
+    };
+    const configFilePath = 'miner.json';
+    if ((0, fs_1.existsSync)(configFilePath)) {
+        const configFile = JSON.parse((0, fs_1.readFileSync)(configFilePath).toString());
+        const errors = [];
+        Object.keys(config).forEach(key => {
+            const configFileValue = configFile[key];
+            if (configFileValue === undefined) {
+                return;
+            }
+            const expectedType = jsonType(config[key]);
+            const actualType = jsonType(configFileValue);
+            if (expectedType !== actualType) {
+                errors.push(`expected value of key "${key}" to have type ${expectedType} but found ${actualType}`);
+                return;
+            }
+            config[key] = configFileValue;
+        });
+        if (errors.length !== 0) {
+            throw new Error(`Invalid type${errors.length === 1 ? '' : 's'} in config file: ${errors.join(', ')}`);
+        }
+    }
+    return config;
+}
+const config = readConfig();
+if (config.signet) {
     (0, btc_1.setChain)('signet');
 }
-// i say DONT CHEAT it is only here for me :)
-const cheat = false;
 const args = process.argv.slice(2);
 let blocks = -1;
 if (args.length > 0) {
@@ -62,9 +97,9 @@ if (args.length > 1) {
         console.log(`Using block template from ${templateFile}`);
     }
 }
-// BIP141
+// see BIP141
 const wCommitHeader = Buffer.from('aa21a9ed', 'hex');
-// BIP325
+// see BIP325
 const signetHeader = Buffer.from('ecc7daa2', 'hex');
 function createCoinbase(address, value, height, txs, message, extraNonce, signetBlockSig) {
     const tx = new bitcoin.Transaction();
@@ -74,14 +109,14 @@ function createCoinbase(address, value, height, txs, message, extraNonce, signet
     // block reward + fees
     tx.addOutput((0, btc_1.bech32toScriptPubKey)(address), value);
     const commits = [];
-    if (segwit) {
+    if (config.segwit) {
         // witness commitment
         const wtxids = txs.map(x => x.hash);
         wtxids.splice(0, 0, Buffer.alloc(32));
         commits.push(Buffer.concat([wCommitHeader, bitcoin.crypto.hash256(Buffer.concat([(0, merkle_tree_1.merkleRoot)(wtxids), Buffer.alloc(32)]))]));
         tx.setWitness(0, [Buffer.alloc(32)]);
     }
-    if (signet) {
+    if (config.signet) {
         // signet block signature
         commits.push(Buffer.concat([signetHeader, signetBlockSig ? signetBlockSig : Buffer.alloc(0)]));
     }
@@ -100,13 +135,13 @@ async function getWork() {
     }
     else {
         const req = { rules: ['segwit'] };
-        if (signet) {
+        if (config.signet) {
             req.rules.push('signet');
         }
         t = await (0, btc_1.getBlockTemplate)(req);
     }
     let time;
-    if (cheat) {
+    if (config.difficulty1) {
         const prev = await (0, btc_1.btc)('getblockheader', t.previousblockhash);
         time = JSON.parse(prev).time + 20 * 60 + 1;
     }
@@ -118,7 +153,7 @@ async function getWork() {
     for (const tx of mempool.map(f => (0, fs_1.readFileSync)(`mempool/${f}`).toString().trim())) {
         await (0, btc_1.insertTransaction)(t, tx);
     }
-    if (!segwit) {
+    if (!config.segwit) {
         let toRemove;
         let removed = 0;
         while ((toRemove = t.transactions.find(x => x.hash != x.txid))) {
@@ -128,16 +163,10 @@ async function getWork() {
         console.log(`Excluded ${removed} SegWit transactions from the block`);
     }
     const txcount = (0, btc_1.encodeVarUintLE)(txs.length + 1);
-    const message = ' testnet4 ';
-    const address = 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3';
-    if (!address) {
-        btc_1.consoleTrace.error('No payout address specified!');
-        process.exit(1);
-    }
     const extraNonce = (0, crypto_1.randomBytes)(4);
     let signetBlockSig;
     while (true) {
-        const coinbase = createCoinbase(address, t.coinbasevalue, t.height, txs, message, extraNonce, signetBlockSig);
+        const coinbase = createCoinbase(config.coinbase_address, t.coinbasevalue, t.height, txs, config.coinbase_message, extraNonce, signetBlockSig);
         let txlen = coinbase.tx.length;
         txs.forEach(tx => {
             txlen += tx.data.length / 2;
@@ -157,10 +186,10 @@ async function getWork() {
         Buffer.from(t.previousblockhash, 'hex').reverse().copy(block, 4);
         mRoot.copy(block, 36);
         block.writeUint32LE(time, 68);
-        Buffer.from(cheat ? '1d00ffff' : t.bits, 'hex')
+        Buffer.from(config.difficulty1 ? '1d00ffff' : t.bits, 'hex')
             .reverse()
             .copy(block, 72);
-        if (!signet || signetBlockSig) {
+        if (!config.signet || signetBlockSig) {
             return { block, mempool };
         }
         // signing code, change to your own needs
@@ -222,7 +251,7 @@ function mine(header) {
                 first = false;
                 args.push('info');
             }
-            p = (0, child_process_1.spawn)(minerd, args);
+            p = (0, child_process_1.spawn)(config.minerd_binary, args);
             let out = '';
             p.stdout.setEncoding('utf8');
             p.stdout.on('data', data => {
