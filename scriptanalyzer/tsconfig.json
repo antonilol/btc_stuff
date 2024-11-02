@@ -1,6 +1,0 @@
-{
-  "compilerOptions": {
-    "outFile": "index.js",
-    "strict": true
-  }
-}

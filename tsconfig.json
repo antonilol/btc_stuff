@@ -4,8 +4,5 @@
     "moduleResolution": "node",
     "module": "commonjs",
     "esModuleInterop": true
-  },
-  "exclude": [
-    "scriptanalyzer"
-  ]
+  }
 }

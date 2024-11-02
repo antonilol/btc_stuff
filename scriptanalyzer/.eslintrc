@@ -1,5 +1,0 @@
-{
-  "parserOptions": {
-    "project": "./scriptanalyzer/tsconfig.json"
-  }
-}
