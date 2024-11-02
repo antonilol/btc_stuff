@@ -56,7 +56,7 @@ async function commitTxPsbt(channel) {
         0x52,
         ...swapIfNot(localFirst, [localms, remotems]),
         0x52,
-        bitcoin.opcodes.OP_CHECKMULTISIG
+        bitcoin.opcodes.OP_CHECKMULTISIG,
     ]);
     // tx version
     psbt.version = commit.Version;
@@ -72,20 +72,20 @@ async function commitTxPsbt(channel) {
             {
                 pubkey: localms,
                 masterFingerprint: Buffer.alloc(4),
-                path: channel.LocalChanCfg.MultiSigKey.Path
+                path: channel.LocalChanCfg.MultiSigKey.Path,
             },
             {
                 pubkey: remotems,
                 masterFingerprint: Buffer.alloc(4),
-                path: 'm'
-            }
+                path: 'm',
+            },
         ]),
         witnessScript,
         nonWitnessUtxo: funding.toBuffer(),
         witnessUtxo: {
             script: bitcoin.script.compile([0, bitcoin.crypto.sha256(witnessScript)]),
-            value: channel.Capacity
-        }
+            value: channel.Capacity,
+        },
     });
     // add outputs
     for (const txout of commit.TxOut) {
@@ -97,9 +97,12 @@ async function commitTxPsbt(channel) {
         partialSig: [
             {
                 pubkey: remotems,
-                signature: Buffer.concat([channel.LocalCommitment.CommitSig, Buffer.from([bitcoin.Transaction.SIGHASH_ALL])])
-            }
-        ]
+                signature: Buffer.concat([
+                    channel.LocalCommitment.CommitSig,
+                    Buffer.from([bitcoin.Transaction.SIGHASH_ALL]),
+                ]),
+            },
+        ],
     });
     return psbt;
 }
@@ -113,7 +116,7 @@ async function commitTxSigned(channel) {
         0x52,
         ...swapIfNot(localFirst, [localms, remotems]),
         0x52,
-        bitcoin.opcodes.OP_CHECKMULTISIG
+        bitcoin.opcodes.OP_CHECKMULTISIG,
     ]);
     tx.version = commit.Version;
     for (const txin of commit.TxIn) {
@@ -140,7 +143,10 @@ async function commitTxSigned(channel) {
         console.log('Derived key does not match public key in the channel.db');
         process.exit(1);
     }
-    const remotesig = Buffer.concat([channel.LocalCommitment.CommitSig, Buffer.from([bitcoin.Transaction.SIGHASH_ALL])]);
+    const remotesig = Buffer.concat([
+        channel.LocalCommitment.CommitSig,
+        Buffer.from([bitcoin.Transaction.SIGHASH_ALL]),
+    ]);
     const localsig = bitcoin.script.signature.encode(keypair.sign(tx.hashForWitnessV0(0, witnessScript, channel.Capacity, bitcoin.Transaction.SIGHASH_ALL)), bitcoin.Transaction.SIGHASH_ALL);
     tx.setWitness(0, [Buffer.alloc(0), ...(localFirst ? [localsig, remotesig] : [remotesig, localsig]), witnessScript]);
     return tx;

@@ -40,7 +40,7 @@ const leaf1script = bitcoin.script.compile([
     ecpair2.publicKey.slice(1, 33),
     btc_1.OP_CHECKSIGADD,
     bitcoin.opcodes.OP_2,
-    bitcoin.opcodes.OP_EQUAL
+    bitcoin.opcodes.OP_EQUAL,
 ]);
 const leaf1 = (0, btc_1.tapLeaf)(leaf1script);
 const leaf2 = Buffer.alloc(32); // all zeros

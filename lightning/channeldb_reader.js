@@ -51,7 +51,7 @@ class StringReader {
         return [
             `${error} at line ${line}, col ${this.pos - start + 1} (pos=${this.pos})`,
             this.data.slice(start, end),
-            ' '.repeat(this.pos - start) + '^'
+            ' '.repeat(this.pos - start) + '^',
         ].join('\n');
     }
     assertAtCursor(s) {
@@ -96,11 +96,11 @@ const typeParsers = {
             string: data,
             txid: Buffer.from(txid, 'hex'),
             txidLE: Buffer.from(txid, 'hex').reverse(),
-            vout: Number(vout)
+            vout: Number(vout),
         };
     }),
     'wire.TxWitness': (reader) => reader.readArray(),
-    'lnwire.DeliveryAddress': (reader) => reader.readBuffer()
+    'lnwire.DeliveryAddress': (reader) => reader.readBuffer(),
 };
 class ChantoolsDumpReader extends StringReader {
     readValue() {

@@ -142,7 +142,11 @@ class StealthAddress {
         }
         else {
             const parity = ((this.spendPub[0] & 1) << 1) | (this.viewPub[0] & 1);
-            return bs58check_1.default.encode(Buffer.concat([Buffer.from([0x28, 0x6f, 0xba, 0x94 | parity]), this.spendPub.slice(1), this.viewPub.slice(1)]));
+            return bs58check_1.default.encode(Buffer.concat([
+                Buffer.from([0x28, 0x6f, 0xba, 0x94 | parity]),
+                this.spendPub.slice(1),
+                this.viewPub.slice(1),
+            ]));
         }
     }
     static fromString(s) {
@@ -151,11 +155,19 @@ class StealthAddress {
         if (data.length == 35 && data[0] == 0x35 && data[1] == 0x05 && data[2] == 0x39) {
             return new StealthAddress(data.subarray(3, 35));
         }
-        else if (data.length == 68 && data[0] == 0x28 && data[1] == 0x70 && data[2] == 0x42 && (data[3] & 0xfe) == 0xb0) {
+        else if (data.length == 68 &&
+            data[0] == 0x28 &&
+            data[1] == 0x70 &&
+            data[2] == 0x42 &&
+            (data[3] & 0xfe) == 0xb0) {
             const spendPub = Buffer.concat([Buffer.from([data[3] & 1 ? 0x03 : 0x02]), data.subarray(4, 36)]);
             return new StealthAddress(spendPub, data.subarray(36, 68));
         }
-        else if (data.length == 68 && data[0] == 0x28 && data[1] == 0x6f && data[2] == 0xba && (data[3] & 0xfc) == 0x94) {
+        else if (data.length == 68 &&
+            data[0] == 0x28 &&
+            data[1] == 0x6f &&
+            data[2] == 0xba &&
+            (data[3] & 0xfc) == 0x94) {
             const spendPub = Buffer.concat([Buffer.from([data[3] & 2 ? 0x03 : 0x02]), data.subarray(4, 36)]);
             const viewPub = Buffer.concat([Buffer.from([data[3] & 1 ? 0x03 : 0x02]), data.subarray(36, 68)]);
             return new StealthAddress(spendPub, viewPub);

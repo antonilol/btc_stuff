@@ -76,7 +76,7 @@ const p2wpkh = bitcoin.script.compile([0, bitcoin.crypto.hash160(ecpair.publicKe
     const sighash2 = tx2.hashForWitnessV0(0, (0, btc_1.p2pkh)(oneTimePrivs[0].publicKey), amount2, hashtype);
     tx2.setWitness(0, [
         bitcoin.script.signature.encode(ECPair.fromPrivateKey(oneTimePrivs[0].privateKey).sign(sighash2), hashtype),
-        oneTimePrivs[0].publicKey
+        oneTimePrivs[0].publicKey,
     ]);
     console.log('spend from one time address', tx2.toHex());
     await (0, btc_1.send)(tx2.toHex());

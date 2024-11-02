@@ -166,7 +166,7 @@ async function fillData() {
         data.ec.compressed = true;
         const wif = {
             main: ((data.ec.network = mainnet), data.ec.toWIF()),
-            test: ((data.ec.network = testnet), data.ec.toWIF())
+            test: ((data.ec.network = testnet), data.ec.toWIF()),
         };
         console.log(`
 Private keys:

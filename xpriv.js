@@ -61,7 +61,7 @@ const versions = [
     { network: 'testnet', version: Buffer.from('045f1cf6', 'hex'), private: false, script: 'p2wpkh' },
     { network: 'testnet', version: Buffer.from('045f18bc', 'hex'), private: true, script: 'p2wpkh' },
     { network: 'testnet', version: Buffer.from('02575483', 'hex'), private: false, script: 'p2wsh' },
-    { network: 'testnet', version: Buffer.from('02575048', 'hex'), private: true, script: 'p2wsh' }
+    { network: 'testnet', version: Buffer.from('02575048', 'hex'), private: true, script: 'p2wsh' },
 ];
 let i, k, ver, depth, fingerprint, n, chain, key, type, bip32key;
 async function main() {

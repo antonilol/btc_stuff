@@ -1,16 +1,16 @@
 import * as curve from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
 import {
-	send,
-	bech32toScriptPubKey,
-	fundAddress,
-	getnewaddress,
-	decodeRawTransaction,
-	negateIfOddPubkey,
-	tapLeaf,
-	tapBranch,
-	createTaprootOutput,
-	OP_CHECKSIGADD
+    send,
+    bech32toScriptPubKey,
+    fundAddress,
+    getnewaddress,
+    decodeRawTransaction,
+    negateIfOddPubkey,
+    tapLeaf,
+    tapBranch,
+    createTaprootOutput,
+    OP_CHECKSIGADD,
 } from './btc';
 import { ECPairFactory } from 'ecpair';
 import { randomBytes } from 'crypto';
@@ -26,12 +26,12 @@ const ecpair2 = ECPair.makeRandom({ network });
 
 // build taptree
 const leaf1script = bitcoin.script.compile([
-	ecpair2.publicKey.slice(1, 33),
-	bitcoin.opcodes.OP_CHECKSIG,
-	ecpair2.publicKey.slice(1, 33),
-	OP_CHECKSIGADD,
-	bitcoin.opcodes.OP_2,
-	bitcoin.opcodes.OP_EQUAL
+    ecpair2.publicKey.slice(1, 33),
+    bitcoin.opcodes.OP_CHECKSIG,
+    ecpair2.publicKey.slice(1, 33),
+    OP_CHECKSIGADD,
+    bitcoin.opcodes.OP_2,
+    bitcoin.opcodes.OP_EQUAL,
 ]);
 
 const leaf1 = tapLeaf(leaf1script);
@@ -48,31 +48,31 @@ const input_sat = 1000;
 console.log(tr.address);
 
 fundAddress(tr.address, input_sat).then(async outpoint => {
-	const tx = new bitcoin.Transaction();
+    const tx = new bitcoin.Transaction();
 
-	tx.version = 2;
-	tx.addInput(Buffer.from(outpoint.txid, 'hex').reverse(), outpoint.vout);
+    tx.version = 2;
+    tx.addInput(Buffer.from(outpoint.txid, 'hex').reverse(), outpoint.vout);
 
-	tx.addOutput(bech32toScriptPubKey(await getnewaddress()), input_sat - fee_sat);
+    tx.addOutput(bech32toScriptPubKey(await getnewaddress()), input_sat - fee_sat);
 
-	const sighash = tx.hashForWitnessV1(
-		0, // which input
-		[ tr.scriptPubKey ], // All previous outputs of all inputs
-		[ input_sat ], // All previous values of all inputs
-		hashtype, // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
-		leaf1
-	);
+    const sighash = tx.hashForWitnessV1(
+        0, // which input
+        [tr.scriptPubKey], // All previous outputs of all inputs
+        [input_sat], // All previous values of all inputs
+        hashtype, // sighash flag, DEFAULT is schnorr-only (DEFAULT == ALL)
+        leaf1,
+    );
 
-	const signature = ecpair2.signSchnorr(sighash);
-	const pub = internalKey.publicKey;
-	pub.writeUint8(0xc0 | tr.parity);
-	const ctrl = Buffer.concat([ pub, leaf2 ]);
-	tx.setWitness(0, [ signature, signature, leaf1script, ctrl ]);
+    const signature = ecpair2.signSchnorr(sighash);
+    const pub = internalKey.publicKey;
+    pub.writeUint8(0xc0 | tr.parity);
+    const ctrl = Buffer.concat([pub, leaf2]);
+    tx.setWitness(0, [signature, signature, leaf1script, ctrl]);
 
-	const decoded = await decodeRawTransaction(tx.toHex());
-	console.log(JSON.stringify(decoded, null, 2));
-	console.log(tx.toHex());
+    const decoded = await decodeRawTransaction(tx.toHex());
+    console.log(JSON.stringify(decoded, null, 2));
+    console.log(tx.toHex());
 
-	await send(tx.toHex());
-	console.log('sendrawtransaction successful');
+    await send(tx.toHex());
+    console.log('sendrawtransaction successful');
 });

@@ -49,7 +49,7 @@ function readConfig() {
         segwit: true,
         signet: false,
         coinbase_address: 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3',
-        coinbase_message: ' github.com/antonilol/btc_stuff '
+        coinbase_message: ' github.com/antonilol/btc_stuff ',
     };
     const configFilePath = 'miner.json';
     if ((0, fs_1.existsSync)(configFilePath)) {
@@ -105,7 +105,11 @@ function createCoinbase(address, value, height, txs, message, extraNonce, signet
     const tx = new bitcoin.Transaction();
     // in
     tx.addInput(Buffer.alloc(32), 0xffffffff);
-    tx.setInputScript(0, Buffer.concat([bitcoin.script.compile([bitcoin.script.number.encode(height)]), extraNonce, Buffer.from(message)]));
+    tx.setInputScript(0, Buffer.concat([
+        bitcoin.script.compile([bitcoin.script.number.encode(height)]),
+        extraNonce,
+        Buffer.from(message),
+    ]));
     // block reward + fees
     tx.addOutput((0, btc_1.bech32toScriptPubKey)(address), value);
     const commits = [];
@@ -113,7 +117,10 @@ function createCoinbase(address, value, height, txs, message, extraNonce, signet
         // witness commitment
         const wtxids = txs.map(x => x.hash);
         wtxids.splice(0, 0, Buffer.alloc(32));
-        commits.push(Buffer.concat([wCommitHeader, bitcoin.crypto.hash256(Buffer.concat([(0, merkle_tree_1.merkleRoot)(wtxids), Buffer.alloc(32)]))]));
+        commits.push(Buffer.concat([
+            wCommitHeader,
+            bitcoin.crypto.hash256(Buffer.concat([(0, merkle_tree_1.merkleRoot)(wtxids), Buffer.alloc(32)])),
+        ]));
         tx.setWitness(0, [Buffer.alloc(32)]);
     }
     if (config.signet) {
@@ -195,7 +202,7 @@ async function getWork() {
         // signing code, change to your own needs
         const sighash = signetBlockSighash(block.subarray(0, 72), Buffer.from(t.signet_challenge, 'hex')).legacy;
         const scriptSig = bitcoin.script.compile([
-            bitcoin.script.signature.encode(ECPair.fromWIF(await (0, btc_1.btc)('dumpprivkey', 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3'), btc_1.network).sign(sighash), bitcoin.Transaction.SIGHASH_ALL)
+            bitcoin.script.signature.encode(ECPair.fromWIF(await (0, btc_1.btc)('dumpprivkey', 'tb1qllllllxl536racn7h9pew8gae7tyu7d58tgkr3'), btc_1.network).sign(sighash), bitcoin.Transaction.SIGHASH_ALL),
         ]);
         const scriptWitness = Buffer.alloc(1);
         signetBlockSig = Buffer.concat([(0, btc_1.encodeVarUintLE)(scriptSig.length), scriptSig, scriptWitness]);
@@ -274,7 +281,7 @@ function mine(header) {
                 }
             });
         }),
-        terminate: () => p.kill('SIGTERM')
+        terminate: () => p.kill('SIGTERM'),
     };
 }
 function signetBlockSighash(header, challenge) {
@@ -290,6 +297,6 @@ function signetBlockSighash(header, challenge) {
     return {
         legacy: toSign.hashForSignature(0, challenge, bitcoin.Transaction.SIGHASH_ALL),
         witness_v0: toSign.hashForWitnessV0(0, challenge, 0, bitcoin.Transaction.SIGHASH_ALL),
-        witness_v1: toSign.hashForWitnessV1(0, [challenge], [0], bitcoin.Transaction.SIGHASH_DEFAULT)
+        witness_v1: toSign.hashForWitnessV1(0, [challenge], [0], bitcoin.Transaction.SIGHASH_DEFAULT),
     };
 }

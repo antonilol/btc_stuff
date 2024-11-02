@@ -37,7 +37,7 @@ function getKeyIV(key) {
     const hash = crypto.createHash('sha512').update(key).digest();
     return {
         key: hash.subarray(0, 32),
-        iv: hash.subarray(32, 48)
+        iv: hash.subarray(32, 48),
     };
 }
 function encrypt(data, key) {

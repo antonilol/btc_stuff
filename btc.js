@@ -51,7 +51,7 @@ exports.networks = {
     test: bitcoin.networks.testnet,
     testnet4: bitcoin.networks.testnet,
     regtest: bitcoin.networks.regtest,
-    signet: bitcoin.networks.testnet
+    signet: bitcoin.networks.testnet,
 };
 let chain = 'testnet4';
 exports.network = exports.networks[chain];
@@ -249,7 +249,7 @@ async function fundOutputScript(scriptPubKey, amount, locktime = 0, version = 2)
         txid: funded.tx.getId(),
         txidBytes: Buffer.from(funded.tx.getId(), 'hex').reverse(),
         vout,
-        hex: funded.hex
+        hex: funded.hex,
     };
 }
 exports.fundOutputScript = fundOutputScript;
@@ -343,7 +343,7 @@ function bip86(ecpair) {
     const tweak = tapTweak(ecpair.publicKey);
     const opts = {
         compressed: ecpair.compressed,
-        network: ecpair.network
+        network: ecpair.network,
     };
     if (ecpair.privateKey) {
         const priv = curve.privateAdd(ecpair.privateKey, tweak);
@@ -369,7 +369,7 @@ function createTaprootOutput(pubkey, root) {
         key,
         parity: (tweaked[0] & 1),
         scriptPubKey: bitcoin.script.compile([bitcoin.opcodes.OP_1, key]),
-        address: bitcoin.address.toBech32(key, 1, exports.network.bech32)
+        address: bitcoin.address.toBech32(key, 1, exports.network.bech32),
     };
 }
 exports.createTaprootOutput = createTaprootOutput;
@@ -464,7 +464,7 @@ async function insertTransaction(template, data) {
         hash: rawtx.hash,
         depends: [],
         TXdepends: template.transactions.filter(x => rawtx.vin.map(y => y.txid).includes(x.txid)),
-        weight: rawtx.weight
+        weight: rawtx.weight,
     };
     template.transactions.push(tx);
     updateNumberDepends(template);
@@ -492,7 +492,7 @@ function p2pkh(pub) {
         bitcoin.opcodes.OP_HASH160,
         bitcoin.crypto.hash160(pub),
         bitcoin.opcodes.OP_EQUALVERIFY,
-        bitcoin.opcodes.OP_CHECKSIG
+        bitcoin.opcodes.OP_CHECKSIG,
     ]);
 }
 exports.p2pkh = p2pkh;
@@ -550,9 +550,9 @@ async function input(q, hide = false) {
                     process.stdout.write(c);
                 }
                 cb();
-            }
+            },
         }),
-        terminal: true
+        terminal: true,
     });
     return new Promise(r => {
         let resolved = false;
@@ -601,6 +601,6 @@ exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(methodNam
                 }
             }
             console[methodName](...args, '\n', `	at ${initiator}`);
-        }
+        },
     ];
 }));
