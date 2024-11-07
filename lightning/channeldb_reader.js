@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseChannelDB = exports.ChantoolsDumpReader = exports.StringReader = void 0;
+exports.ChantoolsDumpReader = exports.StringReader = void 0;
+exports.parseChannelDB = parseChannelDB;
 const assert_1 = require("assert");
 class StringReader {
     constructor(data, pos = 0) {
@@ -185,4 +186,3 @@ exports.ChantoolsDumpReader = ChantoolsDumpReader;
 function parseChannelDB(dump) {
     return new ChantoolsDumpReader(dump).readValue();
 }
-exports.parseChannelDB = parseChannelDB;

@@ -23,7 +23,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.merkleRoot = exports.pathToMerkleRoot = void 0;
+exports.pathToMerkleRoot = pathToMerkleRoot;
+exports.merkleRoot = merkleRoot;
 const assert_1 = require("assert");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 function pathToMerkleRoot(txids, branch) {
@@ -61,8 +62,6 @@ function pathToMerkleRoot(txids, branch) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return path;
 }
-exports.pathToMerkleRoot = pathToMerkleRoot;
 function merkleRoot(txids) {
     return pathToMerkleRoot(txids, txids[0]).root;
 }
-exports.merkleRoot = merkleRoot;

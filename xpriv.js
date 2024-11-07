@@ -29,7 +29,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const assert_1 = require("assert");
 const bip32_1 = __importDefault(require("bip32"));
 const bitcoin = __importStar(require("bitcoinjs-lib"));
-const bs58 = __importStar(require("bs58"));
+const bs58_1 = __importDefault(require("bs58"));
 const curve = __importStar(require("tiny-secp256k1"));
 const btc_1 = require("./btc");
 const bip32 = (0, bip32_1.default)(curve);
@@ -96,7 +96,7 @@ Commands:
         else if (args[0] == 'derive') {
             if (args.length > 1) {
                 if (derive(args[1])) {
-                    console.log(`New key loaded: ${bs58.encode(k)}`);
+                    console.log(`New key loaded: ${bs58_1.default.encode(k)}`);
                 }
             }
             else {
@@ -126,7 +126,7 @@ function derive(path) {
 }
 function loadKey(s) {
     try {
-        k = Buffer.from(bs58.decode(s));
+        k = Buffer.from(bs58_1.default.decode(s));
         (0, assert_1.strict)(k.length == 82);
     }
     catch (e) {
@@ -137,7 +137,7 @@ function loadKey(s) {
     if (bitcoin.crypto.hash256(k.subarray(0, 78)).compare(k, 78, 82, 0, 4)) {
         console.log(color(BOLD, RED) + 'Error: Invalid checksum' + color(RESET));
         checksum(k);
-        console.log('Key with recalculated checksum (only use if you know what you are doing!):\n' + bs58.encode(k));
+        console.log('Key with recalculated checksum (only use if you know what you are doing!):\n' + bs58_1.default.encode(k));
         k = undefined;
         return false;
     }
@@ -169,7 +169,7 @@ function readKey(s, useOldVersion = false) {
         k.copy(clone, 4, 4, 78);
         versions.find(v => v.private == type.private && v.network == type.network).version.copy(clone);
         checksum(clone);
-        bip32key = bip32.fromBase58(bs58.encode(clone), type.network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet);
+        bip32key = bip32.fromBase58(bs58_1.default.encode(clone), type.network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet);
     }
     return true;
 }
@@ -208,7 +208,7 @@ Network     Key type     Script type     Key`);
             pad(v.network, 12) +
             pad(v.private ? 'private' : 'public', 13) +
             pad(v.script, 15) +
-            bs58.encode(k) +
+            bs58_1.default.encode(k) +
             color(RESET));
     });
 }

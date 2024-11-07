@@ -23,8 +23,51 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sleep = exports.input = exports.inputOnEOF = exports.toBTCkvB = exports.toSatvB = exports.toBTC = exports.toSat = exports.txidToString = exports.cloneBuf = exports.p2pkh = exports.bech32toScriptPubKey = exports.insertTransaction = exports.removeTransaction = exports.decodeVarUintLE = exports.encodeVarUintLE = exports.createTaprootOutput = exports.bip86 = exports.tapTweak = exports.tapBranch = exports.tapLeaf = exports.ecPrivateDiv = exports.ecPrivateInv = exports.ecPrivateMul = exports.negateIfOddPubkey = exports.OP_CHECKSIGADD = exports.validNetworks = exports.fundAddress = exports.fundOutputScript = exports.getBlockChainInfo = exports.getIndexInfo = exports.getChainTips = exports.testMempoolAccept = exports.getTransaction = exports.getTXOut = exports.decodeRawTransaction = exports.getBlockTemplate = exports.getnewaddress = exports.listUnspent = exports.listunspent = exports.send = exports.fundTransaction = exports.signAndSend = exports.newtx = exports.btc = exports.chainEnvVarKey = exports.setChain = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
-exports.consoleTrace = void 0;
+exports.consoleTrace = exports.OP_CHECKSIGADD = exports.chainEnvVarKey = exports.network = exports.networks = exports.Uint256 = exports.descsumCreate = void 0;
+exports.setChain = setChain;
+exports.btc = btc;
+exports.newtx = newtx;
+exports.signAndSend = signAndSend;
+exports.fundTransaction = fundTransaction;
+exports.send = send;
+exports.listunspent = listunspent;
+exports.listUnspent = listUnspent;
+exports.getnewaddress = getnewaddress;
+exports.getBlockTemplate = getBlockTemplate;
+exports.decodeRawTransaction = decodeRawTransaction;
+exports.getTXOut = getTXOut;
+exports.getTransaction = getTransaction;
+exports.testMempoolAccept = testMempoolAccept;
+exports.getChainTips = getChainTips;
+exports.getIndexInfo = getIndexInfo;
+exports.getBlockChainInfo = getBlockChainInfo;
+exports.fundOutputScript = fundOutputScript;
+exports.fundAddress = fundAddress;
+exports.validNetworks = validNetworks;
+exports.negateIfOddPubkey = negateIfOddPubkey;
+exports.ecPrivateMul = ecPrivateMul;
+exports.ecPrivateInv = ecPrivateInv;
+exports.ecPrivateDiv = ecPrivateDiv;
+exports.tapLeaf = tapLeaf;
+exports.tapBranch = tapBranch;
+exports.tapTweak = tapTweak;
+exports.bip86 = bip86;
+exports.createTaprootOutput = createTaprootOutput;
+exports.encodeVarUintLE = encodeVarUintLE;
+exports.decodeVarUintLE = decodeVarUintLE;
+exports.removeTransaction = removeTransaction;
+exports.insertTransaction = insertTransaction;
+exports.bech32toScriptPubKey = bech32toScriptPubKey;
+exports.p2pkh = p2pkh;
+exports.cloneBuf = cloneBuf;
+exports.txidToString = txidToString;
+exports.toSat = toSat;
+exports.toBTC = toBTC;
+exports.toSatvB = toSatvB;
+exports.toBTCkvB = toBTCkvB;
+exports.inputOnEOF = inputOnEOF;
+exports.input = input;
+exports.sleep = sleep;
 const assert_1 = require("assert");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const child_process_1 = require("child_process");
@@ -45,7 +88,7 @@ var Uint256;
         return Buffer.from(n.toString(16).padStart(64, '0'), 'hex');
     }
     Uint256.toBuffer = toBuffer;
-})(Uint256 = exports.Uint256 || (exports.Uint256 = {}));
+})(Uint256 || (exports.Uint256 = Uint256 = {}));
 exports.networks = {
     main: bitcoin.networks.bitcoin,
     test: bitcoin.networks.testnet,
@@ -59,7 +102,6 @@ function setChain(c) {
     chain = c;
     exports.network = exports.networks[chain];
 }
-exports.setChain = setChain;
 exports.chainEnvVarKey = 'BTC_STUFF_CHAIN';
 const chainEnvVarValue = process.env[exports.chainEnvVarKey];
 if (chainEnvVarValue) {
@@ -70,6 +112,7 @@ if (chainEnvVarValue) {
         console.error(`Invalid chain "${chainEnvVarValue}", leaving it unchanged (currently set to ${chain})`);
     }
 }
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 async function btc(...args) {
     return new Promise((r, e) => {
         const cmdargs = [`-chain=${chain}`, '-stdin'];
@@ -119,7 +162,6 @@ async function btc(...args) {
         p.stdin.end();
     });
 }
-exports.btc = btc;
 // sign, create and send new transaction
 async function newtx(inputs, outputs, sat) {
     if (sat) {
@@ -143,11 +185,9 @@ async function newtx(inputs, outputs, sat) {
     const tx = await btc('createrawtransaction', inputs, outputs);
     return signAndSend(tx);
 }
-exports.newtx = newtx;
 async function signAndSend(tx) {
     return send(JSON.parse(await btc('signrawtransactionwithwallet', tx)).hex);
 }
-exports.signAndSend = signAndSend;
 async function fundTransaction(tx, convert = true) {
     const res = JSON.parse(await btc('fundrawtransaction', tx));
     if (convert) {
@@ -155,11 +195,9 @@ async function fundTransaction(tx, convert = true) {
     }
     return res;
 }
-exports.fundTransaction = fundTransaction;
 async function send(tx) {
     return btc('sendrawtransaction', tx);
 }
-exports.send = send;
 /** @deprecated Use listUnspent instead */
 async function listunspent(minamount, minconf, sat) {
     return JSON.parse(await btc('-named', 'listunspent', 'minconf=' + minconf, `query_options={"minimumAmount":${minamount}}`)).map((u) => {
@@ -169,7 +207,6 @@ async function listunspent(minamount, minconf, sat) {
         return u;
     });
 }
-exports.listunspent = listunspent;
 /** Lists unspent transaction outputs (UTXOs) */
 async function listUnspent(args = {}, sats = true) {
     const minconf = args.minconf === undefined ? 1 : args.minconf;
@@ -190,32 +227,26 @@ async function listUnspent(args = {}, sats = true) {
     }
     return utxos;
 }
-exports.listUnspent = listUnspent;
 async function getnewaddress() {
     return btc('getnewaddress');
 }
-exports.getnewaddress = getnewaddress;
 async function getBlockTemplate(template_request = { rules: ['segwit'] }) {
     const template = JSON.parse(await btc('getblocktemplate', template_request));
     updateTXDepends(template);
     return template;
 }
-exports.getBlockTemplate = getBlockTemplate;
 async function decodeRawTransaction(tx) {
     return JSON.parse(await btc('decoderawtransaction', tx));
 }
-exports.decodeRawTransaction = decodeRawTransaction;
 async function getTXOut(txid, vout, include_mempool = true) {
     const txout = await btc('gettxout', txidToString(txid), vout, include_mempool);
     if (txout) {
         return JSON.parse(txout);
     }
 }
-exports.getTXOut = getTXOut;
 async function getTransaction(txid, includeWatchonly = true, verbose = false) {
     return JSON.parse(await btc('gettransaction', txidToString(txid), includeWatchonly, verbose));
 }
-exports.getTransaction = getTransaction;
 async function testMempoolAccept(txs, maxfeerate) {
     const arr = Array.isArray(txs);
     const res = JSON.parse(await (maxfeerate === undefined
@@ -223,19 +254,15 @@ async function testMempoolAccept(txs, maxfeerate) {
         : btc('testmempoolaccept', arr ? txs : [txs], toBTCkvB(maxfeerate))));
     return arr ? res : res[0];
 }
-exports.testMempoolAccept = testMempoolAccept;
 async function getChainTips() {
     return JSON.parse(await btc('getchaintips'));
 }
-exports.getChainTips = getChainTips;
 async function getIndexInfo(index) {
     return JSON.parse(await btc('getindexinfo', index || ''));
 }
-exports.getIndexInfo = getIndexInfo;
 async function getBlockChainInfo() {
     return JSON.parse(await btc('getblockchaininfo'));
 }
-exports.getBlockChainInfo = getBlockChainInfo;
 async function fundOutputScript(scriptPubKey, amount, locktime = 0, version = 2) {
     const tx = new bitcoin.Transaction();
     tx.version = version;
@@ -252,14 +279,12 @@ async function fundOutputScript(scriptPubKey, amount, locktime = 0, version = 2)
         hex: funded.hex,
     };
 }
-exports.fundOutputScript = fundOutputScript;
 /** @deprecated Use `fundOutputScript(bitcoin.address.toOutputScript(address, network), amount)` instead */
 async function fundAddress(address, amount) {
     const txid = await btc('sendtoaddress', address, toBTC(amount));
     const vout = (await getTransaction(txid)).details.find(x => x.address == address).vout;
     return { txid, vout };
 }
-exports.fundAddress = fundAddress;
 function validNetworks(address) {
     const output = {};
     for (const net of Object.entries(bitcoin.networks)) {
@@ -271,7 +296,6 @@ function validNetworks(address) {
     }
     return output;
 }
-exports.validNetworks = validNetworks;
 exports.OP_CHECKSIGADD = 0xba; // this is not merged yet: https://github.com/bitcoinjs/bitcoinjs-lib/pull/1742
 const ONE = Uint256.toBuffer(1n);
 const N_LESS_1 = Buffer.from(curve.privateSub(ONE, Uint256.toBuffer(2n)));
@@ -293,7 +317,6 @@ function negateIfOddPubkey(d) {
     }
     return Buffer.from(d);
 }
-exports.negateIfOddPubkey = negateIfOddPubkey;
 // const EC_P = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2fn // not used yet
 const EC_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 function ecPrivateMul(a, b) {
@@ -307,7 +330,6 @@ function ecPrivateMul(a, b) {
     }
     return Uint256.toBuffer((an * bn) % EC_N);
 }
-exports.ecPrivateMul = ecPrivateMul;
 function ecPrivateInv(a) {
     let an = Uint256.toBigint(a);
     if (an <= 0n || an >= EC_N) {
@@ -322,23 +344,18 @@ function ecPrivateInv(a) {
     }
     return Uint256.toBuffer(((y1 % EC_N) + EC_N) % EC_N);
 }
-exports.ecPrivateInv = ecPrivateInv;
 function ecPrivateDiv(a, b) {
     return ecPrivateMul(a, ecPrivateInv(b));
 }
-exports.ecPrivateDiv = ecPrivateDiv;
 function tapLeaf(script) {
     return bitcoin.crypto.taggedHash('TapLeaf', Buffer.concat([Buffer.from([0xc0]), encodeVarUintLE(script.length), script]));
 }
-exports.tapLeaf = tapLeaf;
 function tapBranch(branch1, branch2) {
     return bitcoin.crypto.taggedHash('TapBranch', Buffer.concat(branch1 < branch2 ? [branch1, branch2] : [branch2, branch1]));
 }
-exports.tapBranch = tapBranch;
 function tapTweak(pubkey, root) {
     return bitcoin.crypto.taggedHash('TapTweak', root ? Buffer.concat([pubkey.subarray(-32), root]) : pubkey.subarray(-32));
 }
-exports.tapTweak = tapTweak;
 function bip86(ecpair) {
     const tweak = tapTweak(ecpair.publicKey);
     const opts = {
@@ -358,7 +375,6 @@ function bip86(ecpair) {
     }
     return ECPair.fromPublicKey(Buffer.from(pub), opts);
 }
-exports.bip86 = bip86;
 function createTaprootOutput(pubkey, root) {
     const tweaked = curve.pointAddScalar(pubkey, tapTweak(pubkey, root));
     if (!tweaked) {
@@ -372,7 +388,6 @@ function createTaprootOutput(pubkey, root) {
         address: bitcoin.address.toBech32(key, 1, exports.network.bech32),
     };
 }
-exports.createTaprootOutput = createTaprootOutput;
 // Utils
 function encodeVarUintLE(n) {
     if (typeof n === 'number') {
@@ -406,7 +421,6 @@ function encodeVarUintLE(n) {
         return buf;
     }
 }
-exports.encodeVarUintLE = encodeVarUintLE;
 function decodeVarUintLE(buf, bigint) {
     let n;
     if (buf[0] === 0xff && buf.length >= 9) {
@@ -430,7 +444,6 @@ function decodeVarUintLE(buf, bigint) {
     }
     return bigint ? BigInt(n) : n;
 }
-exports.decodeVarUintLE = decodeVarUintLE;
 // remove a transaction from a templateFile
 // removes all dependendencies
 // subtracts fee of removed transactions from coinbasevalue
@@ -452,7 +465,6 @@ function removeTransaction(template, txid) {
     updateNumberDepends(template);
     return removed;
 }
-exports.removeTransaction = removeTransaction;
 async function insertTransaction(template, data) {
     const rawtx = await decodeRawTransaction(data);
     if (template.transactions.find(x => x.txid == rawtx.txid)) {
@@ -470,7 +482,6 @@ async function insertTransaction(template, data) {
     updateNumberDepends(template);
     return true;
 }
-exports.insertTransaction = insertTransaction;
 function updateTXDepends(template) {
     for (const tx of template.transactions) {
         tx.TXdepends = tx.depends.map(i => template.transactions[i - 1]);
@@ -485,7 +496,6 @@ function bech32toScriptPubKey(a) {
     const z = bitcoin.address.fromBech32(a);
     return bitcoin.script.compile([bitcoin.script.number.encode(z.version), bitcoin.address.fromBech32(a).data]);
 }
-exports.bech32toScriptPubKey = bech32toScriptPubKey;
 function p2pkh(pub) {
     return bitcoin.script.compile([
         bitcoin.opcodes.OP_DUP,
@@ -495,44 +505,36 @@ function p2pkh(pub) {
         bitcoin.opcodes.OP_CHECKSIG,
     ]);
 }
-exports.p2pkh = p2pkh;
 /** @deprecated Use `Buffer.from` instead */
 function cloneBuf(buf) {
     return Buffer.from(buf);
 }
-exports.cloneBuf = cloneBuf;
 function txidToString(txid) {
     if (typeof txid === 'string') {
         return txid;
     }
     return Buffer.from(txid).reverse().toString('hex');
 }
-exports.txidToString = txidToString;
 function toSat(btcAmount) {
     // prevent floating point quirks: 4.24524546 * 1e8 = 424524545.99999994
     return Math.round(btcAmount * 1e8);
 }
-exports.toSat = toSat;
 function toBTC(satAmount) {
     // prevent floating point quirks: 424524546 * 1e-8 = 4.2452454600000005
     return parseFloat((satAmount * 1e-8).toFixed(8));
 }
-exports.toBTC = toBTC;
 /** Converts a fee rate in BTC/kvB to sat/vB */
 function toSatvB(btckvB) {
     return toSat(btckvB) / 1000;
 }
-exports.toSatvB = toSatvB;
 /** Converts a fee rate in sat/vB to BTC/kvB */
 function toBTCkvB(satvB) {
     return toBTC(Math.round(satvB * 1000));
 }
-exports.toBTCkvB = toBTCkvB;
 const eofCallbacks = [];
 function inputOnEOF(cb) {
     eofCallbacks.push(cb);
 }
-exports.inputOnEOF = inputOnEOF;
 async function input(q, hide = false) {
     let active = false;
     const rl = (0, readline_1.createInterface)({
@@ -570,11 +572,9 @@ async function input(q, hide = false) {
         active = true;
     });
 }
-exports.input = input;
 async function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
-exports.sleep = sleep;
 // from https://stackoverflow.com/a/47296370/13800918, edited
 exports.consoleTrace = Object.fromEntries(['log', 'warn', 'error'].map(methodName => {
     return [

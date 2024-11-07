@@ -5,7 +5,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.descsumCreate = void 0;
+exports.descsumCreate = descsumCreate;
 // Utility functions related to output descriptors
 const INPUT_CHARSET = '0123456789()[],\'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#"\\ ';
 const CHECKSUM_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
@@ -56,4 +56,3 @@ function descsumCreate(s) {
     }
     return c;
 }
-exports.descsumCreate = descsumCreate;

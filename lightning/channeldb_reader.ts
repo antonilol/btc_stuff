@@ -1,7 +1,10 @@
 import { strict as assert } from 'assert';
 
 export class StringReader {
-    constructor(private data: string, private pos = 0) {}
+    constructor(
+        private data: string,
+        private pos = 0,
+    ) {}
 
     skip(): void {
         while ([' ', '\n'].includes(this.data[this.pos])) {

@@ -158,7 +158,7 @@ export class StealthAddress {
         // subject to change
         const data = bs58check.decode(s);
         if (data.length == 35 && data[0] == 0x35 && data[1] == 0x05 && data[2] == 0x39) {
-            return new StealthAddress(data.subarray(3, 35));
+            return new StealthAddress(Buffer.from(data.subarray(3, 35)));
         } else if (
             data.length == 68 &&
             data[0] == 0x28 &&
@@ -167,7 +167,7 @@ export class StealthAddress {
             (data[3] & 0xfe) == 0xb0
         ) {
             const spendPub = Buffer.concat([Buffer.from([data[3] & 1 ? 0x03 : 0x02]), data.subarray(4, 36)]);
-            return new StealthAddress(spendPub, data.subarray(36, 68));
+            return new StealthAddress(spendPub, Buffer.from(data.subarray(36, 68)));
         } else if (
             data.length == 68 &&
             data[0] == 0x28 &&

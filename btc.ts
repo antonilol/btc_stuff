@@ -9,7 +9,7 @@ import * as curve from 'tiny-secp256k1';
 export { descsumCreate } from './descriptors';
 
 type ObjectKey = string | number | symbol;
-type ObjectKeyString<K extends ObjectKey> = K extends number ? `${number}` : K extends Symbol ? never : K;
+type ObjectKeyString<K extends ObjectKey> = K extends number ? `${number}` : K extends symbol ? never : K;
 
 declare global {
     interface ObjectConstructor {
@@ -216,6 +216,7 @@ if (chainEnvVarValue) {
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export async function btc(...args: (string | Buffer | number | {} | TransactionType | PsbtType)[]): Promise<string> {
     return new Promise((r, e) => {
         const cmdargs = [`-chain=${chain}`, '-stdin'];
