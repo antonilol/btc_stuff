@@ -1,25 +1,24 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import * as bitcoin from 'bitcoinjs-lib';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { randomBytes } from 'crypto';
+import { ECPairFactory } from 'ecpair';
+import { copyFileSync, existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
+import { dirname } from 'path';
+import * as curve from 'tiny-secp256k1';
 import {
-    btc,
-    bech32toScriptPubKey,
-    getBlockTemplate,
     BlockTemplate,
     BlockTemplateTX,
     TemplateRequest,
-    consoleTrace,
+    bech32toScriptPubKey,
+    btc,
+    encodeVarUintLE,
+    getBlockTemplate,
     insertTransaction,
+    network,
     removeTransaction,
     setChain,
-    network,
-    encodeVarUintLE,
 } from './btc';
 import { merkleRoot } from './merkle_tree';
-import { randomBytes } from 'crypto';
-import { writeFileSync, unlinkSync, copyFileSync, readFileSync, readdirSync, existsSync } from 'fs';
-import { dirname } from 'path';
-import * as curve from 'tiny-secp256k1';
-import { ECPairFactory } from 'ecpair';
 
 const ECPair = ECPairFactory(curve);
 

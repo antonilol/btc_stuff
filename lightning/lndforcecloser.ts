@@ -1,13 +1,13 @@
-import * as bitcoin from 'bitcoinjs-lib';
-import { btc, setChain, input } from '../btc';
-import * as curve from 'tiny-secp256k1';
-import { ECPairFactory } from 'ecpair';
-import { BIP32Factory } from 'bip32';
-import { execSync } from 'child_process';
-import { homedir } from 'os';
 import { strict as assert } from 'assert';
+import { BIP32Factory } from 'bip32';
+import * as bitcoin from 'bitcoinjs-lib';
+import { execSync } from 'child_process';
+import { ECPairFactory } from 'ecpair';
+import { homedir } from 'os';
+import * as curve from 'tiny-secp256k1';
+import { btc, input, setChain } from '../btc';
 
-import { parseChannelDB, Channel } from './channeldb_reader';
+import { Channel, parseChannelDB } from './channeldb_reader';
 
 const ECPair = ECPairFactory(curve);
 const bip32 = BIP32Factory(curve);

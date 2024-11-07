@@ -27,10 +27,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StealthAddress = void 0;
-const curve = __importStar(require("tiny-secp256k1"));
 const bitcoin = __importStar(require("bitcoinjs-lib"));
 const bs58check_1 = __importDefault(require("bs58check"));
 const crypto_1 = require("crypto");
+const curve = __importStar(require("tiny-secp256k1"));
 class StealthAddress {
     constructor(spendKey, viewKey) {
         if (spendKey.length == 32) {

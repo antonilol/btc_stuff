@@ -24,8 +24,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.merkleRoot = exports.pathToMerkleRoot = void 0;
-const bitcoin = __importStar(require("bitcoinjs-lib"));
 const assert_1 = require("assert");
+const bitcoin = __importStar(require("bitcoinjs-lib"));
 function pathToMerkleRoot(txids, branch) {
     let t1 = txids.map(txid => {
         if (!Buffer.isBuffer(txid)) {

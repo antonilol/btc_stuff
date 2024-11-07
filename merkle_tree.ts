@@ -1,5 +1,5 @@
-import * as bitcoin from 'bitcoinjs-lib';
 import { strict as assert } from 'assert';
+import * as bitcoin from 'bitcoinjs-lib';
 
 type Txid = string | Buffer;
 

@@ -1,9 +1,9 @@
-import * as curve from 'tiny-secp256k1';
-import * as bitcoin from 'bitcoinjs-lib';
-import { send, setChain, getnewaddress, fundOutputScript, p2pkh } from './btc';
-import { randomBytes } from 'crypto';
 import { strict as assert } from 'assert';
+import * as bitcoin from 'bitcoinjs-lib';
+import { randomBytes } from 'crypto';
 import { ECPairFactory } from 'ecpair';
+import * as curve from 'tiny-secp256k1';
+import { fundOutputScript, getnewaddress, p2pkh, send, setChain } from './btc';
 import { StealthAddress } from './ecdh_stealth';
 
 setChain('regtest');

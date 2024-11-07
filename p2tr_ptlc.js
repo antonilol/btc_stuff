@@ -23,12 +23,12 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const curve = __importStar(require("tiny-secp256k1"));
-const bitcoin = __importStar(require("bitcoinjs-lib"));
-const btc_1 = require("./btc");
-const ecpair_1 = require("ecpair");
-const crypto_1 = require("crypto");
 const assert_1 = require("assert");
+const bitcoin = __importStar(require("bitcoinjs-lib"));
+const crypto_1 = require("crypto");
+const ecpair_1 = require("ecpair");
+const curve = __importStar(require("tiny-secp256k1"));
+const btc_1 = require("./btc");
 const ECPair = (0, ecpair_1.ECPairFactory)(curve);
 const network = bitcoin.networks.testnet;
 const hashtype = bitcoin.Transaction.SIGHASH_DEFAULT;

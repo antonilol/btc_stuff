@@ -1,7 +1,7 @@
-import * as curve from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
 import bs58check from 'bs58check';
 import { randomBytes } from 'crypto';
+import * as curve from 'tiny-secp256k1';
 
 export class StealthAddress {
     readonly spendPriv?: Buffer;

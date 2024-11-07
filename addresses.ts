@@ -1,9 +1,9 @@
 import { strict as assert } from 'assert';
-import * as curve from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
-import { Keccak } from 'sha3';
-import { input } from './btc';
 import { ECPairFactory, ECPairInterface } from 'ecpair';
+import { Keccak } from 'sha3';
+import * as curve from 'tiny-secp256k1';
+import { input } from './btc';
 import { descsumCreate } from './descriptors';
 
 const mainnet = bitcoin.networks.bitcoin;

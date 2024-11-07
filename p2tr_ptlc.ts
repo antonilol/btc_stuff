@@ -1,19 +1,19 @@
-import * as curve from 'tiny-secp256k1';
+import { strict as assert } from 'assert';
 import * as bitcoin from 'bitcoinjs-lib';
+import { randomBytes } from 'crypto';
+import { ECPairFactory, ECPairInterface } from 'ecpair';
+import * as curve from 'tiny-secp256k1';
 import {
     btc,
-    send,
+    cloneBuf,
     createTaprootOutput,
     ecPrivateMul,
-    negateIfOddPubkey,
-    cloneBuf,
     input,
-    tapLeaf,
+    negateIfOddPubkey,
+    send,
     sleep,
+    tapLeaf,
 } from './btc';
-import { ECPairFactory, ECPairInterface } from 'ecpair';
-import { randomBytes } from 'crypto';
-import { strict as assert } from 'assert';
 
 const ECPair = ECPairFactory(curve);
 

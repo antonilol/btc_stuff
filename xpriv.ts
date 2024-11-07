@@ -1,9 +1,9 @@
-import { input } from './btc';
-import * as bitcoin from 'bitcoinjs-lib';
 import { strict as assert } from 'assert';
-import * as bs58 from 'bs58';
 import BIP32Factory, { BIP32Interface } from 'bip32';
+import * as bitcoin from 'bitcoinjs-lib';
+import * as bs58 from 'bs58';
 import * as curve from 'tiny-secp256k1';
+import { input } from './btc';
 
 const bip32 = BIP32Factory(curve);
 

@@ -1,19 +1,19 @@
-import * as curve from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
+import { randomBytes } from 'crypto';
+import { ECPairFactory } from 'ecpair';
+import * as curve from 'tiny-secp256k1';
 import {
-    send,
     bech32toScriptPubKey,
+    createTaprootOutput,
+    decodeRawTransaction,
     fundAddress,
     getnewaddress,
-    decodeRawTransaction,
     negateIfOddPubkey,
-    tapLeaf,
-    tapBranch,
-    createTaprootOutput,
     OP_CHECKSIGADD,
+    send,
+    tapBranch,
+    tapLeaf,
 } from './btc';
-import { ECPairFactory } from 'ecpair';
-import { randomBytes } from 'crypto';
 
 const ECPair = ECPairFactory(curve);
 

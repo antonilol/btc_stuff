@@ -26,12 +26,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const btc_1 = require("./btc");
-const bitcoin = __importStar(require("bitcoinjs-lib"));
 const assert_1 = require("assert");
-const bs58 = __importStar(require("bs58"));
 const bip32_1 = __importDefault(require("bip32"));
+const bitcoin = __importStar(require("bitcoinjs-lib"));
+const bs58 = __importStar(require("bs58"));
 const curve = __importStar(require("tiny-secp256k1"));
+const btc_1 = require("./btc");
 const bip32 = (0, bip32_1.default)(curve);
 const pad = (s, len) => s + ' '.repeat(len - s.length);
 const color = (...colors) => (colors.length ? `\x1b[${colors.join(';')}m` : '');

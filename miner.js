@@ -23,15 +23,15 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const child_process_1 = require("child_process");
 const bitcoin = __importStar(require("bitcoinjs-lib"));
-const btc_1 = require("./btc");
-const merkle_tree_1 = require("./merkle_tree");
+const child_process_1 = require("child_process");
 const crypto_1 = require("crypto");
+const ecpair_1 = require("ecpair");
 const fs_1 = require("fs");
 const path_1 = require("path");
 const curve = __importStar(require("tiny-secp256k1"));
-const ecpair_1 = require("ecpair");
+const btc_1 = require("./btc");
+const merkle_tree_1 = require("./merkle_tree");
 const ECPair = (0, ecpair_1.ECPairFactory)(curve);
 function readConfig() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

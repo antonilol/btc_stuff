@@ -1,10 +1,10 @@
-import { spawn } from 'child_process';
+import { strict as assert } from 'assert';
 import * as bitcoin from 'bitcoinjs-lib';
-import * as curve from 'tiny-secp256k1';
+import { spawn } from 'child_process';
+import { ECPairFactory, ECPairInterface } from 'ecpair';
 import { createInterface } from 'readline';
 import { Writable } from 'stream';
-import { ECPairFactory, ECPairInterface } from 'ecpair';
-import { strict as assert } from 'assert';
+import * as curve from 'tiny-secp256k1';
 
 export { descsumCreate } from './descriptors';
 

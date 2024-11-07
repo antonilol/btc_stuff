@@ -1,9 +1,9 @@
-import { setChain, send, getnewaddress, fundOutputScript, ecPrivateMul, ecPrivateDiv, p2pkh } from './btc';
-import * as curve from 'tiny-secp256k1';
-import { ECPairFactory } from 'ecpair';
+import { strict as assert } from 'assert';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as crypto from 'crypto';
-import { strict as assert } from 'assert';
+import { ECPairFactory } from 'ecpair';
+import * as curve from 'tiny-secp256k1';
+import { ecPrivateDiv, ecPrivateMul, fundOutputScript, getnewaddress, p2pkh, send, setChain } from './btc';
 
 setChain('regtest');
 
