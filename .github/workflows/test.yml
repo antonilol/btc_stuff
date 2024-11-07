@@ -16,7 +16,7 @@ jobs:
         name: ['ecdsa_sigdata', 'ecdh_stealth_test']
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Bitcoin Core
         run: |
           curl https://bitcoincore.org/bin/bitcoin-core-24.0.1/bitcoin-24.0.1-x86_64-linux-gnu.tar.gz -o bitcoin-core.tar.gz
