@@ -715,7 +715,10 @@ export function tapBranch(branch1: Buffer, branch2: Buffer): Buffer {
 }
 
 export function tapTweak(pubkey: Buffer, root?: Buffer): Buffer {
-    return bitcoin.crypto.taggedHash('TapTweak', root ? Buffer.concat([pubkey.slice(-32), root]) : pubkey.slice(-32));
+    return bitcoin.crypto.taggedHash(
+        'TapTweak',
+        root ? Buffer.concat([pubkey.subarray(-32), root]) : pubkey.subarray(-32),
+    );
 }
 
 export function bip86(ecpair: ECPairInterface): ECPairInterface | undefined {
@@ -746,7 +749,7 @@ export function createTaprootOutput(
     if (!tweaked) {
         return;
     }
-    const key = Buffer.from(tweaked).slice(-32);
+    const key = Buffer.from(tweaked).subarray(-32);
     return {
         key,
         parity: (tweaked[0] & 1) as 0 | 1,

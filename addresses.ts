@@ -21,7 +21,7 @@ function desc(t: string, data: Buffer | string): string {
 
 /** pub is a 64 byte Buffer: 32 bytes x, 32 bytes y */
 function rskAddress(pub: Buffer, main: boolean): string {
-    const addr = new Keccak(256).update(pub).digest().slice(12).toString('hex');
+    const addr = new Keccak(256).update(pub).digest().subarray(12).toString('hex');
     const csumHash = new Keccak(256).update((main ? '30' : '31') + '0x' + addr).digest('hex');
     return (
         '0x' +
@@ -179,7 +179,7 @@ Private key descriptors:
     if (data.pub) {
         console.log(`
 Public keys:
- X-Only:         ${data.pub.slice(1).toString('hex')}
+ X-Only:         ${data.pub.subarray(1).toString('hex')}
  Compressed:   ${data.pub.toString('hex')}
  Uncompressed: ${data.pubu.toString('hex')}
 
@@ -187,7 +187,7 @@ Public key descriptors:
  P2PKH:           ${desc('pkh(KEY)', data.pub)}
  P2WPKH:         ${desc('wpkh(KEY)', data.pub)}
  P2SH-P2WPKH: ${desc('sh(wpkh(KEY))', data.pub)}
- P2TR:               ${desc('tr(KEY)', data.pub.slice(1))}`);
+ P2TR:               ${desc('tr(KEY)', data.pub.subarray(1))}`);
     }
 
     if (data.pub) {
@@ -201,8 +201,8 @@ Public Key Hashes:
  Testnet P2WPKH (compressed public key):  ${bitcoin.address.toBech32(data.pkh, 0, testnet.bech32)}
  Hex (compressed public key):             ${data.pkh.toString('hex')}
  Hex (uncompressed public key):           ${data.pkhu.toString('hex')}
- RSK Mainnet account:                     ${rskAddress(data.pubu.slice(1), true)}
- RSK Testnet account:                     ${rskAddress(data.pubu.slice(1), false)}`);
+ RSK Mainnet account:                     ${rskAddress(data.pubu.subarray(1), true)}
+ RSK Testnet account:                     ${rskAddress(data.pubu.subarray(1), false)}`);
     } else if (data.pkh) {
         console.log(`
 Public Key Hashes:

@@ -35,9 +35,9 @@ const internalKey = ECPair.fromPrivateKey((0, btc_1.negateIfOddPubkey)((0, crypt
 const ecpair2 = ECPair.makeRandom({ network });
 // build taptree
 const leaf1script = bitcoin.script.compile([
-    ecpair2.publicKey.slice(1, 33),
+    ecpair2.publicKey.subarray(1, 33),
     bitcoin.opcodes.OP_CHECKSIG,
-    ecpair2.publicKey.slice(1, 33),
+    ecpair2.publicKey.subarray(1, 33),
     btc_1.OP_CHECKSIGADD,
     bitcoin.opcodes.OP_2,
     bitcoin.opcodes.OP_EQUAL,
@@ -49,7 +49,7 @@ const tr = (0, btc_1.createTaprootOutput)(internalKey.publicKey, branch);
 const fee_sat = 162;
 const input_sat = 1000;
 console.log(tr.address);
-(0, btc_1.fundAddress)(tr.address, input_sat).then(async (outpoint) => {
+(0, btc_1.fundOutputScript)(tr.scriptPubKey, input_sat).then(async (outpoint) => {
     const tx = new bitcoin.Transaction();
     tx.version = 2;
     tx.addInput(Buffer.from(outpoint.txid, 'hex').reverse(), outpoint.vout);

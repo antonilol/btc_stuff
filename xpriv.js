@@ -35,7 +35,7 @@ const btc_1 = require("./btc");
 const bip32 = (0, bip32_1.default)(curve);
 const pad = (s, len) => s + ' '.repeat(len - s.length);
 const color = (...colors) => (colors.length ? `\x1b[${colors.join(';')}m` : '');
-const checksum = (key) => bitcoin.crypto.hash256(key.slice(0, 78)).copy(key, 78, 0, 4);
+const checksum = (key) => bitcoin.crypto.hash256(key.subarray(0, 78)).copy(key, 78, 0, 4);
 const RESET = 0;
 const BOLD = 1;
 const REVERSED = 7;
@@ -134,7 +134,7 @@ function loadKey(s) {
         k = undefined;
         return false;
     }
-    if (bitcoin.crypto.hash256(k.slice(0, 78)).compare(k, 78, 82, 0, 4)) {
+    if (bitcoin.crypto.hash256(k.subarray(0, 78)).compare(k, 78, 82, 0, 4)) {
         console.log(color(BOLD, RED) + 'Error: Invalid checksum' + color(RESET));
         checksum(k);
         console.log('Key with recalculated checksum (only use if you know what you are doing!):\n' + bs58.encode(k));
@@ -152,13 +152,13 @@ function readKey(s, useOldVersion = false) {
         checksum(k);
     }
     else {
-        ver = k.slice(0, 4);
+        ver = k.subarray(0, 4);
     }
     depth = k.readUint8(4);
-    fingerprint = k.slice(5, 9);
+    fingerprint = k.subarray(5, 9);
     n = k.readUint32BE(9);
-    chain = k.slice(13, 45);
-    key = k.slice(45, 78);
+    chain = k.subarray(13, 45);
+    key = k.subarray(45, 78);
     type = versions.find(v => !v.version.compare(ver));
     if (!type) {
         console.log(`Invalid version: 0x${ver.toString('hex')}`);
@@ -184,7 +184,7 @@ Depth:                ${depth}
 Master fingerprint:   ${fingerprint.toString('hex')}
 Child number:         ${n & 0x7fffffff}${n & 0x80000000 ? `'` : ''}
 Chain code:           ${chain.toString('hex')}
-Key:                  ${(key[0] ? key : key.slice(1)).toString('hex')}
+Key:                  ${(key[0] ? key : key.subarray(1)).toString('hex')}
 
 Network:              ${type.network}
 Key type:             ${type.private ? 'private' : 'public'}

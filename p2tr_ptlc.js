@@ -69,7 +69,7 @@ class Adaptor {
         if (RT[0] !== 2) {
             return false;
         }
-        const Pclone = (0, btc_1.cloneBuf)(P);
+        const Pclone = Buffer.from(P);
         Pclone[0] = 0x02;
         const eP = curve.pointMultiply(Pclone, bip340Hash(RT, Pclone, m));
         // negate to get -e*P, which we add to s*G to get R' = s*G - e*P
@@ -84,14 +84,14 @@ class Adaptor {
         return Buffer.concat([curve.pointAdd(this.R, this.T).slice(-32), curve.privateAdd(this.s, t)]);
     }
     extract(sig) {
-        return Buffer.from(curve.privateSub(sig.slice(32), this.s));
+        return Buffer.from(curve.privateSub(sig.subarray(32), this.s));
     }
 }
 const internalKey = Buffer.from(curve.pointFromScalar(bitcoin.crypto.sha256(Buffer.from('unknown key'))));
 internalKey[0] = 0x02;
 function lockupAddress(key1, key2) {
-    const xonly1 = key1.slice(-32);
-    const xonly2 = key2.slice(-32);
+    const xonly1 = key1.subarray(-32);
+    const xonly2 = key2.subarray(-32);
     const first = xonly1 < xonly2;
     const [k1, k2] = first ? [xonly1, xonly2] : [xonly2, xonly1];
     const leafScript = bitcoin.script.compile([k1, bitcoin.opcodes.OP_CHECKSIGVERIFY, k2, bitcoin.opcodes.OP_CHECKSIG]);
@@ -148,7 +148,7 @@ bitcoin-cli -testnet fundrawtransaction ${ltx.toHex()} | jq -r '.hex' | bitcoin-
     const txr = new bitcoin.Transaction();
     txr.version = 2;
     txr.addInput(Buffer.from(ltxf.getId(), 'hex').reverse(), vout, reltimelock);
-    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.slice(-32)]), input_sat - fee_sat);
+    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.subarray(-32)]), input_sat - fee_sat);
     const sighashr = txr.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, (0, btc_1.tapLeaf)(lockup.leafScript));
     const refsig = Buffer.from(await (0, btc_1.input)('paste the refund sig: '), 'hex');
     if (otherKey.verifySchnorr(sighashr, refsig)) {
@@ -169,7 +169,7 @@ bitcoin-cli -testnet fundrawtransaction ${ltx.toHex()} | jq -r '.hex' | bitcoin-
     const txp = new bitcoin.Transaction();
     txp.version = 2;
     txp.addInput(Buffer.from(ltxf.getId(), 'hex').reverse(), vout);
-    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.slice(-32)]), input_sat - fee_sat);
+    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.subarray(-32)]), input_sat - fee_sat);
     const sighashp = txp.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, (0, btc_1.tapLeaf)(lockup.leafScript));
     const a = Adaptor.sign(sighashp, keypair, T);
     console.log('adaptor signature for bob', a.serialize());
@@ -211,7 +211,7 @@ async function bob() {
     const txr = new bitcoin.Transaction();
     txr.version = 2;
     txr.addInput(Buffer.from(txid, 'hex').reverse(), parseInt(vout), reltimelock);
-    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.slice(-32)]), input_sat - fee_sat);
+    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.subarray(-32)]), input_sat - fee_sat);
     const sighashr = txr.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, (0, btc_1.tapLeaf)(lockup.leafScript));
     console.log('refund signature for alice', keypair.signSchnorr(sighashr).toString('hex'));
     console.log('Adaptor payment point: ', T.toString('hex'));
@@ -219,7 +219,7 @@ async function bob() {
     const txp = new bitcoin.Transaction();
     txp.version = 2;
     txp.addInput(Buffer.from(txid, 'hex').reverse(), parseInt(vout));
-    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.slice(-32)]), input_sat - fee_sat);
+    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.subarray(-32)]), input_sat - fee_sat);
     const sighashp = txp.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, (0, btc_1.tapLeaf)(lockup.leafScript));
     const a = Adaptor.deserialize(await (0, btc_1.input)("give me alice's adaptor signature: "));
     if (T.compare(a.T) || !a.verify(sighashp, otherKey.publicKey)) {

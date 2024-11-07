@@ -3,17 +3,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { randomBytes } from 'crypto';
 import { ECPairFactory, ECPairInterface } from 'ecpair';
 import * as curve from 'tiny-secp256k1';
-import {
-    btc,
-    cloneBuf,
-    createTaprootOutput,
-    ecPrivateMul,
-    input,
-    negateIfOddPubkey,
-    send,
-    sleep,
-    tapLeaf,
-} from './btc';
+import { btc, createTaprootOutput, ecPrivateMul, input, negateIfOddPubkey, send, sleep, tapLeaf } from './btc';
 
 const ECPair = ECPairFactory(curve);
 
@@ -73,7 +63,7 @@ class Adaptor {
         if (RT[0] !== 2) {
             return false;
         }
-        const Pclone = cloneBuf(P);
+        const Pclone = Buffer.from(P);
         Pclone[0] = 0x02;
         const eP = curve.pointMultiply(Pclone, bip340Hash(RT, Pclone, m));
         // negate to get -e*P, which we add to s*G to get R' = s*G - e*P
@@ -90,7 +80,7 @@ class Adaptor {
     }
 
     public extract(sig: Buffer): Buffer {
-        return Buffer.from(curve.privateSub(sig.slice(32), this.s));
+        return Buffer.from(curve.privateSub(sig.subarray(32), this.s));
     }
 }
 
@@ -101,8 +91,8 @@ function lockupAddress(
     key1: Buffer,
     key2: Buffer,
 ): ReturnType<typeof createTaprootOutput> & { leafScript: Buffer; first: boolean } {
-    const xonly1 = key1.slice(-32);
-    const xonly2 = key2.slice(-32);
+    const xonly1 = key1.subarray(-32);
+    const xonly2 = key2.subarray(-32);
     const first = xonly1 < xonly2;
     const [k1, k2] = first ? [xonly1, xonly2] : [xonly2, xonly1];
     const leafScript = bitcoin.script.compile([k1, bitcoin.opcodes.OP_CHECKSIGVERIFY, k2, bitcoin.opcodes.OP_CHECKSIG]);
@@ -168,7 +158,7 @@ bitcoin-cli -testnet fundrawtransaction ${ltx.toHex()} | jq -r '.hex' | bitcoin-
     const txr = new bitcoin.Transaction();
     txr.version = 2;
     txr.addInput(Buffer.from(ltxf.getId(), 'hex').reverse(), vout, reltimelock);
-    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.slice(-32)]), input_sat - fee_sat);
+    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.subarray(-32)]), input_sat - fee_sat);
     const sighashr = txr.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, tapLeaf(lockup.leafScript));
     const refsig = Buffer.from(await input('paste the refund sig: '), 'hex');
     if (otherKey.verifySchnorr(sighashr, refsig)) {
@@ -191,7 +181,10 @@ bitcoin-cli -testnet fundrawtransaction ${ltx.toHex()} | jq -r '.hex' | bitcoin-
     const txp = new bitcoin.Transaction();
     txp.version = 2;
     txp.addInput(Buffer.from(ltxf.getId(), 'hex').reverse(), vout);
-    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.slice(-32)]), input_sat - fee_sat);
+    txp.addOutput(
+        bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.subarray(-32)]),
+        input_sat - fee_sat,
+    );
     const sighashp = txp.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, tapLeaf(lockup.leafScript));
 
     const a = Adaptor.sign(sighashp, keypair, T);
@@ -239,7 +232,10 @@ async function bob() {
     const txr = new bitcoin.Transaction();
     txr.version = 2;
     txr.addInput(Buffer.from(txid, 'hex').reverse(), parseInt(vout), reltimelock);
-    txr.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.slice(-32)]), input_sat - fee_sat);
+    txr.addOutput(
+        bitcoin.script.compile([bitcoin.opcodes.OP_1, otherKey.publicKey.subarray(-32)]),
+        input_sat - fee_sat,
+    );
     const sighashr = txr.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, tapLeaf(lockup.leafScript));
     console.log('refund signature for alice', keypair.signSchnorr(sighashr).toString('hex'));
 
@@ -249,7 +245,7 @@ async function bob() {
     const txp = new bitcoin.Transaction();
     txp.version = 2;
     txp.addInput(Buffer.from(txid, 'hex').reverse(), parseInt(vout));
-    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.slice(-32)]), input_sat - fee_sat);
+    txp.addOutput(bitcoin.script.compile([bitcoin.opcodes.OP_1, keypair.publicKey.subarray(-32)]), input_sat - fee_sat);
     const sighashp = txp.hashForWitnessV1(0, [lockup.scriptPubKey], [input_sat], hashtype, tapLeaf(lockup.leafScript));
 
     const a = Adaptor.deserialize(await input("give me alice's adaptor signature: "));

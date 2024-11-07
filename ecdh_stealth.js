@@ -109,7 +109,7 @@ class StealthAddress {
         }
     }
     static checkOneTimeKey(script, publicKey) {
-        if (script.equals(bitcoin.script.compile([bitcoin.opcodes.OP_1, publicKey.slice(1)]))) {
+        if (script.equals(bitcoin.script.compile([bitcoin.opcodes.OP_1, publicKey.subarray(1)]))) {
             return 'p2tr';
         }
         else if (script.equals(bitcoin.script.compile([bitcoin.opcodes.OP_0, bitcoin.crypto.hash160(publicKey)]))) {
@@ -138,14 +138,18 @@ class StealthAddress {
         }
         else if (this.viewPriv) {
             const parity = this.spendPub[0] & 1;
-            return bs58check_1.default.encode(Buffer.concat([Buffer.from([0x28, 0x70, 0x42, 0xb0 | parity]), this.spendPub.slice(1), this.viewPriv]));
+            return bs58check_1.default.encode(Buffer.concat([
+                Buffer.from([0x28, 0x70, 0x42, 0xb0 | parity]),
+                this.spendPub.subarray(1),
+                this.viewPriv,
+            ]));
         }
         else {
             const parity = ((this.spendPub[0] & 1) << 1) | (this.viewPub[0] & 1);
             return bs58check_1.default.encode(Buffer.concat([
                 Buffer.from([0x28, 0x6f, 0xba, 0x94 | parity]),
-                this.spendPub.slice(1),
-                this.viewPub.slice(1),
+                this.spendPub.subarray(1),
+                this.viewPub.subarray(1),
             ]));
         }
     }

@@ -6,7 +6,7 @@ import {
     bech32toScriptPubKey,
     createTaprootOutput,
     decodeRawTransaction,
-    fundAddress,
+    fundOutputScript,
     getnewaddress,
     negateIfOddPubkey,
     OP_CHECKSIGADD,
@@ -26,9 +26,9 @@ const ecpair2 = ECPair.makeRandom({ network });
 
 // build taptree
 const leaf1script = bitcoin.script.compile([
-    ecpair2.publicKey.slice(1, 33),
+    ecpair2.publicKey.subarray(1, 33),
     bitcoin.opcodes.OP_CHECKSIG,
-    ecpair2.publicKey.slice(1, 33),
+    ecpair2.publicKey.subarray(1, 33),
     OP_CHECKSIGADD,
     bitcoin.opcodes.OP_2,
     bitcoin.opcodes.OP_EQUAL,
@@ -47,7 +47,7 @@ const input_sat = 1000;
 
 console.log(tr.address);
 
-fundAddress(tr.address, input_sat).then(async outpoint => {
+fundOutputScript(tr.scriptPubKey, input_sat).then(async outpoint => {
     const tx = new bitcoin.Transaction();
 
     tx.version = 2;
